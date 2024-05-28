@@ -7,7 +7,6 @@ import dynamic from "next/dynamic";
 import CodeArea from "@/components/CodeArea";
 import MemoryArea from "@/components/MemoryArea";
 import Toolbar from "@/components/Toolbar";
-import 'codemirror/lib/codemirror.css';
 
 const TitleBar = dynamic(() => import('../components/Titlebar'), { ssr: false });
 

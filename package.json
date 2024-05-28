@@ -11,7 +11,12 @@
   },
   "dependencies": {
     "@codemirror/lang-cpp": "^6.0.2",
-    "codemirror": "^5.65.16",
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@codemirror/lang-markdown": "^6.2.5",
+    "@uiw/codemirror-theme-monokai": "^4.22.1",
+    "@uiw/react-codemirror": "^4.22.1",
+    "cm6-theme-material-dark": "^0.2.0",
+    "codemirror": "^6.0.1",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18"
