@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Result;
 use std::ffi::OsString;
 use std::fs;
+use std::result;
 use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -30,8 +31,8 @@ pub struct Folder {
 /// Returns JSON string of data
 pub fn read_directory(dir_path: &str) -> Folder {
     let new_path = Path::new(dir_path);
+    let paths = fs::read_dir(new_path).unwrap();    // files & folders
     println!("new path {:?}", new_path);
-    let paths = fs::read_dir(new_path).unwrap();
 
     let mut files: Vec<FileInfo> = Vec::new();
 
@@ -39,13 +40,8 @@ pub fn read_directory(dir_path: &str) -> Folder {
         let path = path.unwrap();
         let meta = path.metadata().unwrap();
 
+        let filename = path.file_name().into_string().unwrap_or("ERROR".into());
         let kind = String::from(if meta.is_dir() { "directory" } else { "file" });
-
-        let filename = match path.file_name().into_string() {
-            Ok(str) => str,
-            Err(_) => String::from("ERROR"),
-        };
-
         let file_path = dir_path.to_owned() + &filename;
 
         let new_file_info = FileInfo {
@@ -62,10 +58,17 @@ pub fn read_directory(dir_path: &str) -> Folder {
     Folder {files: files_str, folder: new_path.file_name().unwrap().to_str().unwrap().into()}
 }
 
-pub fn read_file(path: &str) -> String {
-    let contents =
-        fs::read_to_string(path).expect(format!("ERROR Reading file from: {}", path).as_str());
-    contents
+/// Returns the contents of the file.
+/// Returns an error, if file is not readable.
+pub fn read_file(path: &str) -> result::Result<String, String> {
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(content),
+        Err(_) => {
+            eprintln!("Error reading: {}", path);
+            let path = Path::new(path);
+            return Err(path.file_name().unwrap().to_str().unwrap_or("Can't read file name.").to_string());
+        }
+    }
 }
 
 pub fn write_file(path: &str, content: &str) -> String {

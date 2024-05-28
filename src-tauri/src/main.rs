@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fc;
-use fc::Folder;
+use crate::fc::Folder;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -15,9 +15,8 @@ fn open_folder(folder_path: &str) -> Result<Folder, ()> {
 }
 
 #[tauri::command]
-fn get_file_content(file_path: &str) -> String {
-    let content = fc::read_file(file_path);
-    content
+fn get_file_content(file_path: &str) -> Result<String, String> {
+    fc::read_file(file_path)
 }
 
 #[tauri::command]

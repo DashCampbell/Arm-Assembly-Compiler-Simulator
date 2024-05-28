@@ -6,15 +6,17 @@ import { resolve } from "path"
 
 export const readFile = (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-        invoke("get_file_content", { filePath }).then((message: unknown) => {
+        invoke<string>("get_file_content", { filePath }).then((message: string) => {
             resolve(message as string);
-        }).catch(error => reject(error))
+        }).catch((error: string) => 
+            reject(error)
+        );
     });
 }
 
 export const writeFile = (filePath: string, content: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-        invoke("write_file", { filePath, content }).then((message: unknown) => {
+        invoke<string>("write_file", { filePath, content }).then((message: string) => {
             if (message === 'OK') {
                 resolve(message as string)
             } else {

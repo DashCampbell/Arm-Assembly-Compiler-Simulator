@@ -1,54 +1,47 @@
 import { IFile } from "../types/file"
 import { useSource } from "../context/SourceContext"
 import { getFileObject } from "../stores/files"
-import FileIcon from "./FileIcon"
 import useHorizontalScroll from "../helpers/useHorizontalScroll" // will be define later
 import PreviewImage from "./PreviewImage"
 import CodeEditor from "./CodeEditor" // will be define later
-import { Icon } from "@iconify/react"
+import { useState, useRef, useEffect } from "react"
+import Tab from "./Tab"
+import Terminal from "./Terminal"
 
 export default function CodeArea() {
-    const { opened, selected, setSelect, delOpenedFile } = useSource();
+    const { opened, selected} = useSource();
     const scrollRef = useHorizontalScroll();
-    const onSelectItem = (id: string) => {
-        setSelect(id);
-    };
+   
     const isImage = (name: string) => {
         return ['.png', '.gif', '.jpeg', 'jpg', '.bmp'].some(ext => name.lastIndexOf(ext) !== -1);
     };
-    const close = (ev: React.MouseEvent<Element>, id: string) => {
-        ev.stopPropagation();
-        delOpenedFile(id);
-    }
+    // TODO: Keep track of save states, and update tab icons accordingly.
+
     return (
-        <div id="code-area" className="h-full">
+        <div id="code-area" className=" h-screen">
             {/** This area is for tab bar */}
             <div ref={scrollRef} className="code-tab-items bg-darken flex items-center border-b border-stone-800 divide-x divide-stone-800 overflow-x-auto">
-                {opened.map(item => {
-                    const file = getFileObject(item) as IFile;
-                    const active = selected === item ? 'bg-primary text-slate-400' : 'bg-darken';
+                {opened.map(({id, bSave}) => {
+                    const file = getFileObject(id) as IFile;
+                    const active = selected === id ? 'bg-primary text-slate-400' : 'bg-darken';
                     return (
-                        <div onClick={() => onSelectItem(file.id)} className={`tab-item shrink-0 px-3 py-1.5 text-gray-500 cursor-pointer hover:text-gray-400 flex items-center gap-2 ${active}`} key={item}>
-                            <FileIcon name={file.name} size="sm" />
-                            <span>{file.name}</span>
-                            <i onClick={(ev) => close(ev, item)} className="hover:text-red-400"><Icon icon="ri:file-close-line" /></i>
-                        </div>
+                        <Tab file={file} active={active} id={id} save={bSave} key={id}/>
                     )
                 })}
             </div>
 
             {/** This area is for code content */}
 
-            <div className="code-contents">
-                {opened.map(item => {
-                    const file = getFileObject(item) as IFile;
+            <div className="code-contents h-3/4">
+                {opened.map(({id}, i) => {
+                    const file = getFileObject(id) as IFile;
                     if (isImage(file.name)) {
-                        return <PreviewImage path={file.path} active={item === selected} />
+                        return <PreviewImage path={file.path} active={id === selected} />
                     }
-                    return <CodeEditor key={item} id={item} active={item === selected} />
-
-                })}
+                    return <CodeEditor key={i} id={id} active={id === selected} />
+            })}
             </div> 
+            <Terminal />
         </div>
     );
 }

@@ -72,8 +72,8 @@ html {
 }
 
 .code-structure {
-  @apply px-2 overflow-y-auto;
-  height: calc(100vh - 70px);
+  @apply px-2;
+  height: 35vh;
 }
 
 /* Styles for scrollbar */
@@ -91,17 +91,25 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #465056;
+  /* background: #465056; */
+  background: #81898e;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
 
+span svg {
+  display: inline-block;
+}
+
 #editor {
   display: grid;
-  grid-template-columns: 220px auto;
-  padding-top: 20px;
+  grid-template-columns: 220px auto 460px;
+}
+
+.h-screen {
+  height: calc(100vh - 44px);
 }
 
 /* Fixes weird scrolling issues in CodeMirror (https://stackoverflow.com/questions/72768501/why-codemirror-editor-does-not-scroll-horizontally-with-long-line) */
@@ -111,6 +119,62 @@ html {
 }
 .cm-editor {
   width: 0;
-  max-height: calc(-48px + 100vh);
+  max-height: calc(-84px + 100vh);
   flex-grow: 1;
+}
+
+#memory-grid {
+  height: calc(100vh - 44px - 56px);
+}
+#memory-grid > div {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background-color: #81898e;
+}
+#memory-grid span{
+  border: white 1px solid;
+  padding: 5px;
+  text-align: center;
+}
+#memory-grid div:first-of-type {
+  position: sticky;
+  top: 0;
+}
+#memory-grid div:first-of-type, #memory-grid span:last-child {
+  background-color: #697073;
+}
+
+
+
+#CPU {
+  border-top: #505558 solid 2px;
+  height: calc(65vh - 92px);
+  max-height: fit-content;
+  padding-bottom: 0;
+}
+#CPU>div>div {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  background-color: #81898e;
+  text-align: center;
+}
+#CPU div>span:first-of-type {
+  background-color: #697073;
+}
+#CPU div>span {
+  border: 1px solid white;
+}
+
+#terminal-output{
+  border: 2px solid gray;
+  height: calc(100% - 66px);
+}
+
+#terminal-input{
+  height: 40px;
+  background: gray;
+}
+
+#terminal-input span {
+  font-weight: 600;
 }

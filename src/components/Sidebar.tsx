@@ -1,10 +1,11 @@
 "use client"
 
+import { open } from "@tauri-apps/api/dialog";
 import { useState } from "react";
 import { IFile } from "../types/file";
-import { open } from "@tauri-apps/api/dialog";
-import NavFiles from "./NavFiles";
 import { readDirectory } from "../helpers/filesys";
+import NavFiles from "./NavFiles";
+import CPUState from "./CPUState";
 
 
 export default function Sidebar() {
@@ -25,14 +26,15 @@ export default function Sidebar() {
     }
 
     return (
-        <div id="sidebar" className="h-full bg-darken">
+        <div id="sidebar" className="h-screen bg-darken">
             <div className="sidebar-header flex items-center justify-between p-4 py-2.5">
                 <button className="project-explorer" onClick={loadFile}>File explorer</button>
                 <span className="project-name whitespace-nowrap text-gray-400 text-xs">{projectName}</span>
             </div>
-            <div className="code-structure overflow-scroll pb-3">
+            <div className="code-structure overflow-scroll">
                 <NavFiles visible={true} files={files} />
             </div>
+            <CPUState />
         </div>
     );
 }
