@@ -66,7 +66,6 @@ export default function CodeEditor({ id, active}: Props) {
         }
     }, [editor.current]);
 
-
     return (
         <main className={`w-full h-full ${visible}`}>
             <div ref={editor} className="root-wrapper h-full" tabIndex={-1} onKeyDown={(ev) =>{

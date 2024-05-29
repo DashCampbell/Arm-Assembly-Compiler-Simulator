@@ -18,9 +18,9 @@ export default function CodeArea() {
     // TODO: Keep track of save states, and update tab icons accordingly.
 
     return (
-        <div id="code-area" className=" h-screen">
+        <div id="code-area" className="">
             {/** This area is for tab bar */}
-            <div ref={scrollRef} className="code-tab-items bg-darken flex items-center border-b border-stone-800 divide-x divide-stone-800 overflow-x-auto">
+            <div ref={scrollRef} className=" h-9 code-tab-items bg-darken flex items-center border-b border-stone-800 divide-x divide-stone-800">
                 {opened.map(({id, bSave}) => {
                     const file = getFileObject(id) as IFile;
                     const active = selected === id ? 'bg-primary text-slate-400' : 'bg-darken';
@@ -32,7 +32,7 @@ export default function CodeArea() {
 
             {/** This area is for code content */}
 
-            <div className="code-contents h-3/4">
+            <div className="code-contents">
                 {opened.map(({id}, i) => {
                     const file = getFileObject(id) as IFile;
                     if (isImage(file.name)) {

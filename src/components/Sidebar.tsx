@@ -26,7 +26,7 @@ export default function Sidebar() {
     }
 
     return (
-        <div id="sidebar" className="h-screen bg-darken">
+        <div id="sidebar" className="bg-darken">
             <div className="sidebar-header flex items-center justify-between p-4 py-2.5">
                 <button className="project-explorer" onClick={loadFile}>File explorer</button>
                 <span className="project-name whitespace-nowrap text-gray-400 text-xs">{projectName}</span>

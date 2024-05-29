@@ -62,6 +62,16 @@ html {
   @apply bg-red-500 text-gray-100;
 }
 
+/* Tool Bar */
+#toolbar {
+  position: fixed;
+  top: 20px;
+  left: 0;
+  right: 0;
+}
+
+
+
 .project-explorer {
   @apply text-left uppercase text-gray-200 text-sm py-1 px-2 bg-slate-500;
   width: fit-content;
@@ -73,7 +83,7 @@ html {
 
 .code-structure {
   @apply px-2;
-  height: 35vh;
+  height: calc(40vh - 56px - 48px);
 }
 
 /* Styles for scrollbar */
@@ -106,10 +116,11 @@ span svg {
 #editor {
   display: grid;
   grid-template-columns: 220px auto 460px;
-}
 
-.h-screen {
-  height: calc(100vh - 44px);
+  position: absolute;
+  top: 52px;
+
+  height: calc(100vh - 52px);
 }
 
 /* Fixes weird scrolling issues in CodeMirror (https://stackoverflow.com/questions/72768501/why-codemirror-editor-does-not-scroll-horizontally-with-long-line) */
@@ -123,8 +134,14 @@ span svg {
   flex-grow: 1;
 }
 
+.code-contents {
+  height: calc(75vh - 56px - 36px);
+}
+
 #memory-grid {
-  height: calc(100vh - 44px - 56px);
+  /* wtf */
+  /* make sure the grid does not cross the bottom of the window, otherwise page glitches up */
+  height: calc(100vh - 56px - 44px - 16px - 4px); 
 }
 #memory-grid > div {
   display: grid;
@@ -148,8 +165,7 @@ span svg {
 
 #CPU {
   border-top: #505558 solid 2px;
-  height: calc(65vh - 92px);
-  max-height: fit-content;
+  height: 60vh;
   padding-bottom: 0;
 }
 #CPU>div>div {
@@ -165,9 +181,12 @@ span svg {
   border: 1px solid white;
 }
 
+#terminal {
+  height: 25vh;
+}
 #terminal-output{
   border: 2px solid gray;
-  height: calc(100% - 66px);
+  height: calc(100% - 40px);
 }
 
 #terminal-input{
