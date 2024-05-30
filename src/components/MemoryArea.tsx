@@ -58,8 +58,9 @@ export default function MemoryArea() {
             <div className="px-2 pt-3">
                 <span className=" mr-1">Go to: </span>
                 <input ref={inputElement} type="text" className="text-black rounded-md p-1" placeholder="Memory Address" onKeyDown={(e) => handleInput(e.key)} />
-                <select id="" title="Number System of Bytes" className="text-zinc-800 ml-4 p-1 rounded-sm">
-                    <option value="decimal">Decimal</option>
+                <select id="" title="Display Format of bytes" className="text-zinc-800 ml-4 p-1 rounded-sm">
+                    <option value="unsigned">Unsigned Integer</option>
+                    <option value="signed">Signed Integer</option>
                     <option value="binary">Binary</option>
                     <option value="hexadecimal">Hexadecimal</option>
                 </select>

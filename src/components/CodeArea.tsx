@@ -38,7 +38,8 @@ export default function CodeArea() {
                     if (isImage(file.name)) {
                         return <PreviewImage path={file.path} active={id === selected} />
                     }
-                    return <CodeEditor key={i} id={id} active={id === selected} />
+                    // key must be id and not i, otherwise tabs close wrong editor.
+                    return <CodeEditor key={id} id={id} active={id === selected} />
             })}
             </div> 
             <Terminal />
