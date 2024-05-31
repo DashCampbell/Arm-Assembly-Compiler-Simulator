@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::{collections::HashMap};
 
 #[derive(Debug)]
 #[allow(non_snake_case)]
@@ -17,7 +18,7 @@ pub struct Operands {
     pub Rd_hi: u8,
 }
 impl Operands {
-    fn new()->Self{
+    pub fn new()->Self{
         Operands{
             Rd: 0,
             Rn: 0,
@@ -50,32 +51,38 @@ pub enum Encoding {
     RegT4,
 }
 #[allow(non_snake_case)]
-pub struct CPU {
+/// Contains both CPU and Memory information.
+pub struct Processor {
     // i64 has range (-2^63 to 2^63-1)
     // Stores values (-2^31 to 2^31-1) or (0, 2^32) 
-    R: [i64; 15],
-    N: bool,
-    Z: bool,
-    C: bool,
-    V: bool,
+    pub R: [i64; 16],
+    pub N: bool,
+    pub Z: bool,
+    pub C: bool,
+    pub V: bool,
+    /// PC register, stores the location of the next intruction. (File location & line number)
+    pub PC: String,
+    // size = 1kb = 1024 bytes
+    // 1 byte = 8 bits
+    // i16 to store unsigned and signed bytes
+    /// RAM
+    pub memory: [i16; 1024],
+    // A hashmap of labels. key = Label, value = index in Compile Lines list
+    pub labels: HashMap<String, usize>,
 }
-impl CPU {
-    fn new() -> Self {
-        CPU {
-            R: [0; 15],
+impl Processor {
+    pub fn new() -> Self {
+        Processor {
+            R: [0; 16],
             N: false,
             Z: false,
             C: false,
             V: false,
+            PC: "".into(),
+            memory: [0; 1024],
+            labels: HashMap::new(),
         }
     }
-}
-
-pub struct Memory {
-    // size = 1kb = 1024 bytes
-    // 1 byte = 8 bits
-    // i16 to store unsigned and signed bytes
-    mem: [i16; 1024]
 }
 
 /// Regex expression for unsigned immediate values
@@ -99,7 +106,7 @@ fn re_is_dec(num: &str) -> bool {
     .is_match(num)
 }
 
-/// Collect all numbers in a line. Including register numbers, hexadecimal, binary, immediate values, etc..
+/// Collect all unsigned numbers in a line. Including register numbers, hexadecimal, binary, immediate values, etc..
 fn re_get_all_numbers(line: &str) -> Vec<i64> {
     Regex::new(format!(r"(r\d+|{})", re_u_number()).as_str())
     .unwrap()
@@ -134,10 +141,10 @@ pub trait Instruction {
     /// Determines & validates the encoding type for an instruction line. Returns an error if the instruction is invalid.
     /// Called at compile time
     fn get_encoding(line: &str)-> Result<(Encoding, Operands), String>;
-    fn encode(encoding: Encoding, operands: &Operands) -> String;
+    fn encode(encoding: &Encoding, operands: &Operands) -> String;
     /// Returns Ok() if instruction executed correctly, returns Err() if there is a runtime error.
     /// Called at runtime.
-    fn execute(encoding: Encoding, operands: &Operands, cpu: &mut CPU, memory: &mut Memory) -> Result<(), String>;
+    fn execute(encoding: &Encoding, operands: &Operands, chip: &mut Processor) -> Result<(), String>;
 }
 
 
@@ -209,16 +216,16 @@ impl Instruction for MOV{
             Err(format!("Not enough arguments for instruction '{}'", MOV::mnemonic()))
         }
     }
-    fn encode(encoding: Encoding, operands: &Operands) -> String {
+    fn encode(encoding: &Encoding, operands: &Operands) -> String {
         match encoding {
             Encoding::ImmT1 => format!("0010 0{:03b} {:08b}", operands.Rd, operands.immed),
             _=> "".into()
         }
     }
-    fn execute(encoding: Encoding, operands: &Operands, cpu: &mut CPU, _memory: &mut Memory) -> Result<(), String> {
+    fn execute(encoding: &Encoding, operands: &Operands, chip: &mut Processor) -> Result<(), String> {
         match encoding {
-            Encoding::ImmT1 | Encoding::ImmT2 => cpu.R[operands.Rd as usize] = operands.immed,
-            Encoding::RegT1 | Encoding::RegT2 => cpu.R[operands.Rd as usize] = cpu.R[operands.Rn as usize],
+            Encoding::ImmT1 | Encoding::ImmT2 => chip.R[operands.Rd as usize] = operands.immed,
+            Encoding::RegT1 | Encoding::RegT2 => chip.R[operands.Rd as usize] = chip.R[operands.Rn as usize],
             _=> return Err("Encoding for MOV instruction is wrong.".into()),
         }
         Ok(())

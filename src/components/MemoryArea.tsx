@@ -74,7 +74,7 @@ export default function MemoryArea() {
                     <span>addr + 2</span>
                     <span>addr + 1</span>
                     <span>addr + 0</span>
-                    <span></span>
+                    <span>address</span>
                 </div>
                 {[...Array(memory_size / 4)].map((e, i) =>(
                 <div className="memory-row" key={i}>

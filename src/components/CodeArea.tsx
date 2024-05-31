@@ -1,10 +1,9 @@
 import { IFile } from "../types/file"
 import { useSource } from "../context/SourceContext"
 import { getFileObject } from "../stores/files"
-import useHorizontalScroll from "../helpers/useHorizontalScroll" // will be define later
+import useHorizontalScroll from "../helpers/useHorizontalScroll"
 import PreviewImage from "./PreviewImage"
-import CodeEditor from "./CodeEditor" // will be define later
-import { useState, useRef, useEffect } from "react"
+import CodeEditor from "./CodeEditor"
 import Tab from "./Tab"
 import Terminal from "./Terminal"
 
@@ -15,7 +14,6 @@ export default function CodeArea() {
     const isImage = (name: string) => {
         return ['.png', '.gif', '.jpeg', 'jpg', '.bmp'].some(ext => name.lastIndexOf(ext) !== -1);
     };
-    // TODO: Keep track of save states, and update tab icons accordingly.
 
     return (
         <div id="code-area" className="">
@@ -33,7 +31,7 @@ export default function CodeArea() {
             {/** This area is for code content */}
 
             <div className="code-contents">
-                {opened.map(({id}, i) => {
+                {opened.map(({id}) => {
                     const file = getFileObject(id) as IFile;
                     if (isImage(file.name)) {
                         return <PreviewImage path={file.path} active={id === selected} />

@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import CodeArea from "@/components/CodeArea";
 import MemoryArea from "@/components/MemoryArea";
 import Toolbar from "@/components/Toolbar";
+import { AssemblySourceProvider } from "@/context/AssemblyContext";
 
 const TitleBar = dynamic(() => import('../components/Titlebar'), { ssr: false });
 
@@ -14,14 +15,16 @@ export default function Home() {
   return (
     <div className="wrapper">
       <TitleBar ></TitleBar>
-      <SourceProvider>
-        <Toolbar />
-        <div id="editor" className="bg-primary h-screen">
-          <Sidebar />
-          <CodeArea />
-          <MemoryArea />
-        </div>
-      </SourceProvider>
+      <AssemblySourceProvider>
+        <SourceProvider>
+          <Toolbar />
+          <div id="editor" className="bg-primary h-screen w-full">
+            <Sidebar />
+            <CodeArea />
+            <MemoryArea />
+          </div>
+        </SourceProvider>
+      </AssemblySourceProvider>
     </div>
   );
 }

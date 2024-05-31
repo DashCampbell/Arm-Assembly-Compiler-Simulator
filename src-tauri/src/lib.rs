@@ -1,6 +1,5 @@
 mod fc;
 mod arm7;
-
 use arm7::*;
 
 #[cfg(test)]
@@ -24,7 +23,7 @@ mod tests {
         match en {
             Ok((encoding, ops)) => {
                 assert_eq!(encoding, Encoding::RegT1);
-                println!("{}", MOV::encode(encoding, &ops));
+                println!("{}", MOV::encode(&encoding, &ops));
             },
             Err(mes) => panic!("{}", mes),
         }

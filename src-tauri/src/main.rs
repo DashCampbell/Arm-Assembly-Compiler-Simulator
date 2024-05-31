@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fc;
-use crate::fc::Folder;
+use fc::Folder;
 
 #[tauri::command]
 fn greet(name: &str) -> String {

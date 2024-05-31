@@ -1,17 +1,24 @@
+import { useAssemblySource } from "@/context/AssemblyContext";
+
 export default function Terminal(){
+    const {std_out} = useAssemblySource();
+
     return (
         <div id="terminal" className="p-2 bg-zinc-700">
             {/* Standard Output */}
-            <div id="terminal-output" className="p-4 bg-primary text-gray-300 overflow-scroll">
-                Lorem ipsum dolor sit amet, consectetur adipisicing elit. 
-                Nisi nobis atque enim qui eius quo et, inventore quaerat reiciendis nemo delectus
-                iste dolorem natus at ab saepe deserunt. Expedita, tempora?
-                Lorem ipsum dolor sit amet, consectetur adipisicing elit. 
-                Nisi nobis atque enim qui eius quo et, inventore quaerat reiciendis nemo delectus
-                iste dolorem natus at ab saepe deserunt. Expedita, tempora?
-                Lorem ipsum dolor sit amet, consectetur adipisicing elit. 
-                Nisi nobis atque enim qui eius quo et, inventore quaerat reiciendis nemo delectus
-                iste dolorem natus at ab saepe deserunt. Expedita, tempora?
+            <div id="terminal-output" className="p-4 bg-primary text-sm text-gray-300 overflow-scroll">
+                {std_out.map((out, i) => {
+                    switch (out.type) {
+                        case "compile":
+                            return <p className=" text-green-500 font-bold">{out.message}</p>                            
+                        case "run":
+                            return <p className="text-green-500 font-bold">{out.message}</p>
+                        case "error":
+                            return <p><span className=" text-red-500 font-bold">Error: </span>{out.message}</p>
+                        default:
+                            return <p>{out.message}</p>
+                    }
+                })}
             </div>
             {/* Standard Input */}
             <div id="terminal-input" className="py-1 px-6 bg-zinc-600">
