@@ -2,7 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod fc;
+mod arm7;
+mod Process;
+
 use fc::Folder;
+use std::sync::Mutex;
+use arm7::Processor;
+use Process::GlobalProcessor;
+
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -28,11 +35,13 @@ fn write_file(file_path: &str, content: &str) -> String {
 fn main() {
     println!("Starting App");
     tauri::Builder::default()
+        .manage(GlobalProcessor(Mutex::new(Processor::new())))
         .invoke_handler(tauri::generate_handler![
             greet,
             open_folder,
             get_file_content,
-            write_file
+            write_file,
+            Process::compile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

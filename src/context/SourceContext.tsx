@@ -12,6 +12,8 @@ interface ISourceContext {
     opened: OpenedFile[];   // list of opened file id's
     addOpenedFile: (id: string) => void;
     delOpenedFile: (id: string) => void;
+    directory: string;  // Parent folder
+    setDirectory: (dir: string) => void;
     setSaveStateOpenedFile: (id: string, state: boolean) => void;
 }
 
@@ -22,12 +24,15 @@ const SourceContext = createContext<ISourceContext>({
     opened: [],
     addOpenedFile: (id) => { },
     delOpenedFile: (id) => { },
-    setSaveStateOpenedFile: (id, state) => {},
+    directory: '',
+    setDirectory: (dir) => { },
+    setSaveStateOpenedFile: (id, state) => { },
 });
 
 export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
     const [selected, setSelected] = useState('');
     const [opened, updateOpenedFiles] = useState<OpenedFile[]>([]);
+    const [directory, setDirectory] = useState('');
 
     const setSelect = (id: string) => {
         setSelected(id);
@@ -36,7 +41,7 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
         // if (opened.includes(id)) return;    // do nothing if file already opened
         // updateOpenedFiles(prevOpen => ([...prevOpen, id]));
         if (opened.some(o => o.id === id)) return;    // do nothing if file already opened
-        updateOpenedFiles(prevOpen => ([...prevOpen, {id, bSave: false}]));
+        updateOpenedFiles(prevOpen => ([...prevOpen, { id, bSave: false }]));
     }, [opened]);
     // close opened file
     const delOpenedFile = useCallback((id: string) => {
@@ -57,6 +62,7 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
             selected, setSelect,
             opened,
             addOpenedFile, delOpenedFile,
+            directory, setDirectory,
             setSaveStateOpenedFile,
         }}>
             {children}
@@ -64,8 +70,9 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
     );
 }
 
-export const useSource = () => {
-    const { selected, setSelect, opened, addOpenedFile, delOpenedFile , setSaveStateOpenedFile} = useContext(SourceContext)
+export const useSource = (): ISourceContext => {
+    return useContext(SourceContext);
+    // const { selected, setSelect, opened, addOpenedFile, delOpenedFile, setSaveStateOpenedFile } = useContext(SourceContext)
 
-    return { selected, setSelect, opened, addOpenedFile, delOpenedFile , setSaveStateOpenedFile}
+    // return { selected, setSelect, opened, addOpenedFile, delOpenedFile, setSaveStateOpenedFile }
 }

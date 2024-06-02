@@ -1,7 +1,7 @@
 import { useAssemblySource } from "@/context/AssemblyContext";
 
-export default function Terminal(){
-    const {std_out} = useAssemblySource();
+export default function Terminal() {
+    const { std_out } = useAssemblySource();
 
     return (
         <div id="terminal" className="p-2 bg-zinc-700">
@@ -10,22 +10,24 @@ export default function Terminal(){
                 {std_out.map((out, i) => {
                     switch (out.type) {
                         case "compile":
-                            return <p className=" text-green-500 font-bold">{out.message}</p>                            
+                            return <p key={i} className=" text-green-500 font-bold">{out.message}</p>
                         case "run":
-                            return <p className="text-green-500 font-bold">{out.message}</p>
+                            return <p key={i} className="text-green-500 font-bold">{out.message}</p>
                         case "error":
-                            return <p><span className=" text-red-500 font-bold">Error: </span>{out.message}</p>
+                            return <p key={i}><span className=" text-red-500 font-bold">Error: </span>{out.message}</p>
+                        case "red":
+                            return <p key={i} className="text-red-500 font-bold">{out.message}</p>
                         default:
-                            return <p>{out.message}</p>
+                            return <p key={i}>{out.message}</p>
                     }
                 })}
             </div>
             {/* Standard Input */}
             <div id="terminal-input" className="py-1 px-6 bg-zinc-600">
                 {/* <form action=""> */}
-                    <span className="text-gray bg-white inline-block pl-2 pr-3 py-1">{">>"}</span>
-                    <input type="text" placeholder="user input...." className="py-1 w-2/5 focus:outline-none"/>
-                    {/* <input type="submit" hidden/> */}
+                <span className="text-gray bg-white inline-block pl-2 pr-3 py-1">{">>"}</span>
+                <input type="text" placeholder="user input...." className="py-1 w-2/5 focus:outline-none" />
+                {/* <input type="submit" hidden/> */}
                 {/* </form> */}
             </div>
         </div>

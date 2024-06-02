@@ -1,7 +1,10 @@
 import { useAssemblySource } from "@/context/AssemblyContext";
+import { useSource } from "@/context/SourceContext";
 import { Icon } from "@iconify/react/dist/iconify.js"
+import { invoke } from "@tauri-apps/api/tauri";
 
-export default function Toolbar(){
+export default function Toolbar() {
+    const { directory } = useSource();
     const {
         setUpdateCPU,
         setUpdateMemory,
@@ -16,18 +19,31 @@ export default function Toolbar(){
 
         // Compile Code, update terminal with result
         push_std_out("compile", "Compiling...");
-            // TODO: Invoke tauri command to compile code
+        // TODO: Invoke tauri command to compile code
+        console.log(directory);
+        invoke('compile', { dir_path: directory })
+            .then(res => {
+                push_std_out("compile", "Compiled Successfully");
+
+                // Run assembly code, activate Stop btn.
+                push_std_out("run", "Running...");
+                // TODO: Invoke tauri command to run code.
+
+                // Update Terminal, CPU, and Memory data
+                setUpdateCPU(true);
+                setUpdateMemory(true);
+            }
+            ).catch(err => {
+                err.forEach((mess: string) => {
+                    push_std_out("error", mess);
+                });
+                push_std_out("red", "Compiling failed...");
+            });
 
         // Reset Terminal, CPU, and Memory data
-            // TODO: Invoke tauri command to reset states
-            
-        // Run assembly code, activate Stop btn.
-        push_std_out("run", "Running...");
-            // TODO: Invoke tauri command to run code.
+        // TODO: Invoke tauri command to reset states
 
-        // Update Terminal, CPU, and Memory data
-        setUpdateCPU(true);
-        setUpdateMemory(true);
+
     };
 
     return (

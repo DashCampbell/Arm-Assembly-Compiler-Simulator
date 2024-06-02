@@ -1,8 +1,7 @@
 import { nanoid } from "nanoid"
 import { invoke } from "@tauri-apps/api/tauri"
 import { IFile } from "../types/file"
-import { saveFileObject } from "../stores/files" // we'll defines this file below
-import { resolve } from "path"
+import { saveFileObject } from "../stores/files"
 
 export const readFile = (filePath: string): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -20,7 +19,7 @@ export const writeFile = (filePath: string, content: string): Promise<string> =>
             if (message === 'OK') {
                 resolve(message as string)
             } else {
-                reject('WRITE ERROR')
+                reject('Error writing to '+filePath)
             }
         })
     });
