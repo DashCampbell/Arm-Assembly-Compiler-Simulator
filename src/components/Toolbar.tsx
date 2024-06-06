@@ -27,11 +27,17 @@ export default function Toolbar() {
 
                 // Run assembly code, activate Stop btn.
                 push_std_out("run", "Running...");
-                // TODO: Invoke tauri command to run code.
 
-                // Update Terminal, CPU, and Memory data
-                setUpdateCPU(true);
-                setUpdateMemory(true);
+                invoke<string>('run').then((res: string) => {
+                    push_std_out("text", res);
+                    push_std_out("run", "Finished Running");
+
+                    // Update Terminal, CPU, and Memory data
+                    setUpdateCPU(true);
+                    setUpdateMemory(true);
+                }).catch(err => {
+                    push_std_out("error", err);
+                });
             }
             ).catch(err => {
                 err.forEach((mess: string) => {
@@ -39,11 +45,6 @@ export default function Toolbar() {
                 });
                 push_std_out("red", "Compiling failed...");
             });
-
-        // Reset Terminal, CPU, and Memory data
-        // TODO: Invoke tauri command to reset states
-
-
     };
 
     return (

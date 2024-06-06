@@ -1,6 +1,6 @@
+use crate::helpers as hp;
 use regex::Regex;
 use std::collections::HashMap;
-use std::mem;
 
 #[derive(Debug)]
 #[allow(non_snake_case)]
@@ -19,7 +19,7 @@ pub struct Operands {
     pub Rd_hi: u8,
 }
 impl Operands {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Operands {
             Rd: 0,
             Rn: 0,
@@ -53,13 +53,18 @@ pub enum Encoding {
 
 /// Contains an instruction line and metadata
 struct Line {
+    /// Used for error messages
     line: String,
+    mnemonic: String,
+    /// Used to run line.
     encoding: Encoding,
+    /// Used to run line.
     operands: Operands,
 }
 impl Line {
-    fn new(line: String, encoding: Encoding, operands: Operands) -> Self {
+    fn new(mnemonic: String, line: String, encoding: Encoding, operands: Operands) -> Self {
         Line {
+            mnemonic,
             line,
             encoding,
             operands,
@@ -67,20 +72,10 @@ impl Line {
     }
 }
 
-#[allow(non_snake_case)]
-/// Contains both CPU and Memory information.
-pub struct Processor {
-    pub R: [u32; 16],
-    pub N: bool,
-    pub Z: bool,
-    pub C: bool,
-    pub V: bool,
-    /// PC register, stores the index of the next intruction.
-    PC: usize,
-    // size = 1kb = 1024 bytes
-    // 1 byte = 8 bits
-    /// RAM
-    memory: [u8; 1024],
+/// Contains the Assembly program.
+/// Labels, lines, and a list of all Instructions
+/// Initialized at compile time, cannot be changed at runtime.
+pub struct Program {
     /// A hashmap of labels. key = Label, value = index in Compile Lines list
     labels: HashMap<String, usize>,
     /// A list of compiled instruction lines
@@ -88,37 +83,36 @@ pub struct Processor {
     /// The Arm Intruction Set
     instructions: HashMap<String, Box<dyn Instruction>>,
 }
-impl Processor {
+
+impl Program {
     pub fn new() -> Self {
         let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
         instructions.insert("mov".into(), Box::new(MOV {}));
 
-        Processor {
-            R: [0; 16],
-            N: false,
-            Z: false,
-            C: false,
-            V: false,
-            PC: 0,
-            memory: [0; 1024],
+        Program {
             labels: HashMap::new(),
             lines: Vec::new(),
             instructions,
         }
     }
-    /// Resets all values except the instructions hashmap.
     pub fn reset(&mut self) {
-        let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
-        mem::swap(&mut self.instructions, &mut instructions);
-        *self = Processor {
-            instructions,
-            ..Self::new()
-        }
+        self.labels.clear();
+        self.lines.clear();
     }
     /// Pushes a new compiled line.
-    pub fn push_line(&mut self, line: &str, encoding: Encoding, operands: Operands) {
-        self.lines
-            .push(Line::new(line.to_string(), encoding, operands));
+    fn push_line(
+        &mut self,
+        mnemonic: &String,
+        line: &String,
+        encoding: Encoding,
+        operands: Operands,
+    ) {
+        self.lines.push(Line::new(
+            mnemonic.clone(),
+            line.clone(),
+            encoding,
+            operands,
+        ));
     }
     /// Returns the mnemonic of a given line, if there is one.
     pub fn find_mnemonic(&self, line: &String) -> Option<String> {
@@ -127,13 +121,19 @@ impl Processor {
             Some(line) => line,
             None => return None,
         };
-        // remove condition code if it exists
-        let re_cc = Regex::new(re_condition_codes()).unwrap();
+        // NOTE: An instruction cannot have a condition code and s flag extension at the same time.
+
+        // check for condition code extension
+        let re_cc = Regex::new(hp::condition_codes()).unwrap();
         if line.len() > 2 && re_cc.is_match(&line[line.len() - 2..]) {
-            line = &line[..line.len() - 2];
+            // remove condition code if it exists
+            let line = &line[..line.len() - 2];
+            if self.instructions.contains_key(line) {
+                return Some(line.to_string());
+            }
         }
         // remove S flag if it exists
-        if line.len() > 1 && line.chars().last().unwrap() == 's' {
+        if line.len() > 1 && line.ends_with('s') {
             line = &line[..line.len() - 1];
         }
         if self.instructions.contains_key(line) {
@@ -158,115 +158,71 @@ impl Processor {
         match instruction.get_encoding(line) {
             Ok((encoding, operands)) => {
                 // TODO: do something with the encoding format.
-                let encoding_format = instruction.encode(encoding, &operands);
+                let _encoding_format = instruction.encode(encoding, &operands);
                 // push compiled line onto instruction stack.
-                self.push_line(line, encoding, operands);
+                self.push_line(mnemonic, line, encoding, operands);
 
                 Ok(())
             }
             Err(err) => Err(err),
         }
     }
-}
+    /// Runs compiled assembly instuctions
+    pub fn run(&self, processor: &mut Processor) -> Result<String, String> {
+        // Starting at the PC index.
+        while processor.PC < self.lines.len() {
+            // get the line to run
+            let line = &self.lines[processor.PC];
+            // get the instruction
+            let instruction = self
+                .instructions
+                .get(&line.mnemonic)
+                .expect("run-time error, mnemonic should be valid!");
 
-/// Regex expression for every condition code.
-fn re_condition_codes() -> &'static str {
-    r"(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)"
-}
-/// Regex expression for unsigned immediate values
-/// ex: #0x12, #12, #0b1100
-fn re_u_number() -> &'static str {
-    r"#(0b[01]+|0x[A-Fa-f\d]+|\d+)"
-}
-/// Regex expression for signed immediate values
-/// ex: #0x12, #-12, #-0b1100, #12
-fn re_i_number() -> &'static str {
-    r"#-?(0b[01]+|0x[A-Fa-f\d]+|\d+)"
-}
-fn re_is_bin(num: &str) -> bool {
-    Regex::new(r"^#-?0b[01]+$").unwrap().is_match(num)
-}
-fn re_is_hex(num: &str) -> bool {
-    Regex::new(r"^#-?0x[A-Fa-f\d]+$").unwrap().is_match(num)
-}
-fn re_is_dec(num: &str) -> bool {
-    Regex::new(r"#-?\d+$").unwrap().is_match(num)
-}
-
-/// Collect all unsigned/signed numbers in a line. Including register numbers, hexadecimal, binary, immediate values, etc..
-/// Returns an error if there are invalid registers, numbers are invalid, out of bounds, etc...
-fn re_get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
-    let mut errors: Vec<String> = Vec::new();
-    let mut numbers: Vec<i64> = Vec::new();
-
-    for mat in Regex::new(format!(r"(r\d+|{})", re_i_number()).as_str())
-        .unwrap()
-        .find_iter(line)
-        .map(|m| m.as_str())
-    {
-        if mat.starts_with('r') {
-            // handle register numbers
-            match (&mat[1..]).parse::<i64>() {
-                Ok(n) => {
-                    if n > 15 {
-                        errors.push(format!(
-                            "Register r{} is invalid, only registers r0 to r15 are allowed.",
-                            n
-                        ));
-                    } else {
-                        numbers.push(n);
-                    }
-                }
-                Err(_) => errors.push(format!(
-                    "Register {} is invalid, only registers r0 to r15 are allowed.",
-                    mat
-                )),
+            // run line
+            if let Err(std_err) = instruction.execute(line.encoding, &line.operands, processor) {
+                // immediately stop running if an error is detected
+                return Err(std_err);
             }
-        } else {
-            // handle immediate values
-            // check for negative value
-            let mut sign: i64 = 1;
-            let mut index_offset = 0; // if there is a minus sign, offset the index by one.
-            if mat.starts_with("#-") {
-                sign = -1;
-                index_offset = 1;
-            }
-            let num = if re_is_bin(mat) {
-                i64::from_str_radix(&mat[3 + index_offset..], 2)
-            } else if re_is_hex(mat) {
-                // Hexadecimal
-                i64::from_str_radix(&mat[3 + index_offset..], 16)
-            } else {
-                // Immediate Decimal Value
-                (&mat[1 + index_offset..]).parse::<i64>()
-            };
-            // check for out of bounds error
-            if let Ok(num) = num {
-                // acceptable values are -2^31 to 2^32 - 1 inclusive
-                const LOWER_BOUND: i64 = -(2 as i64).pow(31);
-                const UPPER_BOUND: i64 = (2 as i64).pow(32) - 1;
+            processor.PC += 1;
+        }
+        Ok("".into())
+    }
+}
 
-                if LOWER_BOUND <= num && num <= UPPER_BOUND {
-                    numbers.push(sign * num);
-                } else {
-                    errors.push(format!("Immediate value {} is out of bounds.", mat));
-                }
-            } else {
-                errors.push(format!("Immediate value {} is out of bounds.", mat));
-            }
+#[derive(Debug)]
+#[allow(non_snake_case)]
+/// Contains both CPU and Memory information.
+pub struct Processor {
+    pub R: [u32; 16],
+    pub N: bool,
+    pub Z: bool,
+    pub C: bool,
+    pub V: bool,
+    /// PC register, stores the index of the next intruction.
+    PC: usize,
+    // size = 1kb = 1024 bytes
+    // 1 byte = 8 bits
+    /// RAM
+    pub memory: [u8; 1024],
+}
+impl Processor {
+    pub fn new() -> Self {
+        Processor {
+            R: [0; 16],
+            N: false,
+            Z: false,
+            C: false,
+            V: false,
+            PC: 0,
+            memory: [0; 1024],
         }
     }
-
-    if errors.is_empty() {
-        Ok(numbers)
-    } else {
-        Err(errors)
+    /// Resets all values except the instructions hashmap.
+    pub fn reset(&mut self) {
+        println!("reset processor");
+        *self = Self::new();
     }
-}
-fn re_check_s_flag(mnemonic: &str, line: &str) -> bool {
-    Regex::new(format!(r"^{}s", mnemonic).as_str())
-        .unwrap()
-        .is_match(line)
 }
 
 pub trait Instruction: Send + Sync {
@@ -288,6 +244,7 @@ pub trait Instruction: Send + Sync {
 }
 
 // Implement Instructions
+#[derive(Clone)]
 pub struct MOV;
 impl Instruction for MOV {
     fn mnemonic(&self) -> &'static str {
@@ -299,11 +256,11 @@ impl Instruction for MOV {
     }
     fn get_encoding(&self, line: &str) -> Result<(Encoding, Operands), Vec<String>> {
         let line = line.trim();
-        let s_flag = re_check_s_flag(self.mnemonic(), line);
+        let s_flag = hp::check_s_flag(self.mnemonic(), line);
 
         // Remove mnemonic and flags first
         if let Some((_, line)) = line.split_once(' ') {
-            let re_imm = Regex::new(format!(r"^r\d+\s*,\s*{}$", re_u_number()).as_str()).unwrap(); // move immediate
+            let re_imm = Regex::new(format!(r"^r\d+\s*,\s*{}$", hp::u_number()).as_str()).unwrap(); // move immediate
             let re_reg = Regex::new(r"^r\d+\s*,\s*r\d+$").unwrap(); // move register
 
             // Trim whitespace
@@ -316,7 +273,7 @@ impl Instruction for MOV {
                 } else {
                     Encoding::ImmT2
                 };
-                match re_get_all_numbers(line) {
+                match hp::get_all_numbers(line) {
                     Ok(args) => {
                         let rd = args[0];
                         let immed = args[1];
@@ -334,7 +291,7 @@ impl Instruction for MOV {
                 } else {
                     Encoding::RegT2
                 };
-                match re_get_all_numbers(line) {
+                match hp::get_all_numbers(line) {
                     Ok(args) => {
                         let rd = args[0];
                         let rn = args[1];

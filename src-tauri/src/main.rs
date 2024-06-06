@@ -1,15 +1,18 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod fc;
-mod arm7;
 mod Process;
+mod arm7;
+mod fc;
+mod helpers;
 
 use fc::Folder;
 use std::sync::Mutex;
-use arm7::Processor;
-use Process::GlobalProcessor;
 
+use arm7::Processor;
+use arm7::Program;
+use Process::GlobalProcessor;
+use Process::GlobalProgram;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -36,12 +39,15 @@ fn main() {
     println!("Starting App");
     tauri::Builder::default()
         .manage(GlobalProcessor(Mutex::new(Processor::new())))
+        .manage(GlobalProgram(Mutex::new(Program::new())))
         .invoke_handler(tauri::generate_handler![
             greet,
             open_folder,
             get_file_content,
             write_file,
             Process::compile,
+            Process::run,
+            Process::display_CPU,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

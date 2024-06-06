@@ -1,6 +1,7 @@
 mod Process;
 mod arm7;
 mod fc;
+mod helpers;
 
 #[cfg(test)]
 mod tests {
@@ -15,7 +16,7 @@ mod tests {
                 assert_eq!(encoding, Encoding::ImmT1);
                 println!("{}", ops.immed);
             }
-            Err(mes) => panic!("{}", mes),
+            Err(mes) => panic!("{:?}", mes),
         }
     }
     #[test]
@@ -26,7 +27,7 @@ mod tests {
                 assert_eq!(encoding, Encoding::RegT1);
                 println!("{}", MOV.encode(encoding, &ops));
             }
-            Err(mes) => panic!("{}", mes),
+            Err(mes) => panic!("{:?}", mes),
         }
     }
     #[test]
@@ -36,7 +37,35 @@ mod tests {
             Ok((encoding, ops)) => {
                 panic!("Return Error: Not enough instructions.")
             }
-            Err(mes) => println!("{}", mes),
+            Err(mes) => println!("{:?}", mes),
         }
+    }
+    #[test]
+    fn process_find_mnemonic_1() {
+        let program = Program::new();
+        assert_eq!(
+            program.find_mnemonic(&"movs r9, r0 // comment".to_string()),
+            Some("mov".into())
+        );
+        assert_eq!(
+            program.find_mnemonic(&"movvs r9, r0 // comment".to_string()),
+            Some("mov".into())
+        );
+        assert_eq!(
+            program.find_mnemonic(&"mov r999 , r10930 // //sdcomment".to_string()),
+            Some("mov".into())
+        );
+        assert_eq!(
+            program.find_mnemonic(&"bad r999 , r10930 // //sdcomment".to_string()),
+            None
+        );
+        assert_eq!(
+            program.find_mnemonic(&"movgl r999 , r10930 // //sdcomment".to_string()),
+            None
+        );
+        assert_eq!(
+            program.find_mnemonic(&"movsvs r999 , r10930 // //sdcomment".to_string()),
+            None
+        );
     }
 }
