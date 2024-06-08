@@ -2,10 +2,12 @@ mod Process;
 mod arm7;
 mod fc;
 mod helpers;
+mod instructions;
 
 #[cfg(test)]
 mod tests {
     use super::arm7::*;
+
     const MOV: MOV = MOV {};
 
     #[test]

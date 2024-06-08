@@ -145,12 +145,10 @@ span svg {
   /* wtf */
   /* make sure the grid does not cross the bottom of the window, otherwise page glitches up */
   height: calc(100vh - 56px - 44px - 16px - 4px);
-}
-
-#memory-grid>div {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   background-color: #81898e;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 #memory-grid span {
@@ -159,13 +157,8 @@ span svg {
   text-align: center;
 }
 
-#memory-grid div:first-of-type {
-  position: sticky;
-  top: 0;
-}
-
-#memory-grid div:first-of-type,
-#memory-grid span:last-child {
+#memory-grid span:nth-of-type(5n),
+#memory-grid span:nth-of-type(-n + 5) {
   background-color: #697073;
 }
 
@@ -184,7 +177,9 @@ span svg {
 }
 
 #CPU div>span {
+  border: 1px solid white;
   padding: 2px 3px;
+  font-family: 'Courier New', Courier, monospace;
 }
 
 #CPU div>span:nth-of-type(odd) {
@@ -193,10 +188,6 @@ span svg {
 
 #CPU div>span:nth-of-type(even) {
   background-color: #81898e;
-}
-
-#CPU div>span {
-  border: 1px solid white;
 }
 
 #terminal {

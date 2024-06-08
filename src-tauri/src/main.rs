@@ -5,6 +5,7 @@ mod Process;
 mod arm7;
 mod fc;
 mod helpers;
+mod instructions;
 
 use fc::Folder;
 use std::sync::Mutex;
@@ -48,6 +49,7 @@ fn main() {
             Process::compile,
             Process::run,
             Process::display_CPU,
+            Process::display_Memory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

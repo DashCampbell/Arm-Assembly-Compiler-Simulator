@@ -127,7 +127,7 @@ pub fn display_CPU(processor: State<GlobalProcessor>, num_format: String) -> CPU
     // format based on chosen number system.
     let formatter = match num_format.as_str() {
         "signed" => |r: u32| format!("{}", r as i32),
-        "binary" => |r| format!("{:#032b}", r),
+        "binary" => |r| format!("{:#034b}", r),
         "hexadecimal" => |r| format!("{:#010x}", r),
         _ => |r| format!("{}", r), // default is unsigned u32
     };
@@ -140,4 +140,22 @@ pub fn display_CPU(processor: State<GlobalProcessor>, num_format: String) -> CPU
         C: processor.C,
         V: processor.V,
     }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn display_Memory(processor: State<GlobalProcessor>, num_format: String) -> Vec<String> {
+    // get processor
+    let processor = processor
+        .0
+        .lock()
+        .expect("Failed to get processor in display_CPU function.");
+
+    // format based on chosen number system.
+    let formatter = match num_format.as_str() {
+        "signed" => |byte: u8| format!("{}", byte as i8),
+        "binary" => |byte| format!("{:#010b}", byte),
+        "hexadecimal" => |byte| format!("{:#04x}", byte),
+        _ => |byte| format!("{}", byte), // default is unsigned u32
+    };
+    processor.memory.into_iter().map(formatter).collect()
 }
