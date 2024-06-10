@@ -60,9 +60,9 @@ pub fn compile(
         let line = line.trim().to_lowercase();
 
         // identify mnemonic
-        if let Some(mnemonic) = program.find_mnemonic(&line) {
+        if let Some((mnemonic, extension)) = program.find_mnemonic(&line) {
             // Mnemonic is valid.
-            if let Err(error_messages) = program.compile_instruction(&mnemonic, &line) {
+            if let Err(error_messages) = program.compile_instruction(&mnemonic, extension, &line) {
                 // return any compile time errors for this instruction.
                 for e in error_messages {
                     errors.push(format!("Line {}: {}", line_number + 1, e));

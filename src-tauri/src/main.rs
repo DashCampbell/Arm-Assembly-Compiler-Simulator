@@ -3,6 +3,7 @@
 
 mod Process;
 mod arm7;
+mod error;
 mod fc;
 mod helpers;
 mod instructions;

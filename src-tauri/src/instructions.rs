@@ -1,21 +1,26 @@
-use crate::arm7::{Encoding, Operands, Processor};
+use crate::arm7::{Category, MnemonicExtension, Operands, Processor};
+use crate::error;
 use crate::helpers as hp;
 
 use regex::Regex;
 
 pub trait Instruction: Send + Sync {
+    /// The instruction's mnemonic, must be lowercase for text parsing.
     fn mnemonic(&self) -> &'static str;
-    fn valid_encodings(&self) -> &'static str;
-    /// Determines & validates the encoding type and operands for an instruction line. Returns an error if the instruction is invalid.
+    /// Determines & validates the category and operands for an instruction line. Returns an error if the instruction is invalid.
     /// Called at compile time
-    fn get_encoding(&self, line: &str) -> Result<(Encoding, Operands), Vec<String>>;
-    // Encodes an instruction
-    fn encode(&self, encoding: Encoding, operands: &Operands) -> String;
+    /// The extension if used to validate the instruction and get any constraints.
+    fn get_category(
+        &self,
+        extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<(Category, Operands), Vec<String>>;
     /// Returns Ok() if instruction executed correctly, returns Err() if there is a runtime error.
     /// Called at runtime.
     fn execute(
         &self,
-        encoding: Encoding,
+        s_suffix: bool,
+        category: Category,
         operands: &Operands,
         chip: &mut Processor,
     ) -> Result<(), String>;
@@ -28,91 +33,121 @@ impl Instruction for MOV {
     fn mnemonic(&self) -> &'static str {
         "mov"
     }
-    fn valid_encodings(&self) -> &'static str {
-        "mov rd, rn\n
-        mov rd, #immed"
-    }
-    fn get_encoding(&self, line: &str) -> Result<(Encoding, Operands), Vec<String>> {
-        let line = line.trim();
-        let s_flag = hp::check_s_flag(self.mnemonic(), line);
+    fn get_category(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<(Category, Operands), Vec<String>> {
+        // get operands
+        let args = hp::get_all_numbers(line)?;
+        let mut errors: Vec<String> = Vec::new();
 
-        // Remove mnemonic and flags first
-        if let Some((_, line)) = line.split_once(' ') {
-            let re_imm = Regex::new(format!(r"^r\d+\s*,\s*{}$", hp::u_number()).as_str()).unwrap(); // move immediate
-            let re_reg = Regex::new(r"^r\d+\s*,\s*r\d+$").unwrap(); // move register
-
-            // Trim whitespace
-            let line = line.trim();
-            let mut operands = Operands::new();
-
-            if re_imm.is_match(line) {
-                let encoding = if !s_flag {
-                    Encoding::ImmT1
-                } else {
-                    Encoding::ImmT2
-                };
-                match hp::get_all_numbers(line) {
-                    Ok(args) => {
-                        let rd = args[0];
-                        let immed = args[1];
-
-                        operands.Rd = rd as u8;
-                        operands.immed = immed as u32;
-
-                        Ok((encoding, operands))
-                    }
-                    Err(errors) => Err(errors),
-                }
-            } else if re_reg.is_match(line) {
-                let encoding = if !s_flag {
-                    Encoding::RegT1
-                } else {
-                    Encoding::RegT2
-                };
-                match hp::get_all_numbers(line) {
-                    Ok(args) => {
-                        let rd = args[0];
-                        let rn = args[1];
-
-                        operands.Rd = rd as u8;
-                        operands.Rn = rn as u8;
-
-                        Ok((encoding, operands))
-                    }
-                    Err(errors) => Err(errors),
-                }
-            } else {
-                Err(vec![format!(
-                    "Invalid Arguments for intruction '{}'",
-                    self.mnemonic()
-                )])
-            }
+        let mut operands = Operands::new();
+        let category = if hp::is_Rd_immed(self.mnemonic(), line) {
+            operands.immed = args[1] as u32;
+            error::check_imm12(operands.immed, &mut errors);
+            Category::Immediate
+        } else if hp::is_Rd_Rm(self.mnemonic(), line) {
+            operands.Rm = args[1] as u8;
+            error::check_sp_or_pc(operands.Rm, "Rn", &mut errors);
+            Category::Register
         } else {
-            Err(vec![format!(
-                "Not enough arguments for instruction '{}'",
-                self.mnemonic()
-            )])
-        }
-    }
-    fn encode(&self, encoding: Encoding, operands: &Operands) -> String {
-        match encoding {
-            Encoding::ImmT1 => format!("0010 0{:03b} {:08b}", operands.Rd, operands.immed),
-            _ => "".into(),
+            return Err(error::invalid_args(line));
+        };
+        operands.Rd = args[0] as u8;
+        error::check_sp_or_pc(operands.Rd, "Rd", &mut errors);
+
+        if errors.is_empty() {
+            Ok((category, operands))
+        } else {
+            Err(errors)
         }
     }
     fn execute(
         &self,
-        encoding: Encoding,
+        s_suffix: bool,
+        category: Category,
         operands: &Operands,
         chip: &mut Processor,
     ) -> Result<(), String> {
-        match encoding {
-            Encoding::ImmT1 | Encoding::ImmT2 => chip.R[operands.Rd as usize] = operands.immed,
-            Encoding::RegT1 | Encoding::RegT2 => {
-                chip.R[operands.Rd as usize] = chip.R[operands.Rn as usize]
-            }
-            _ => return Err("Encoding for MOV instruction is wrong.".into()),
+        let rd = match category {
+            Category::Immediate => operands.immed,
+            Category::Register => chip.R[operands.Rm as usize],
+            _ => return Err("Wrong encoding type given.".into()),
+        };
+        // set aspr flags
+        if s_suffix {
+            hp::set_nz_flags(rd, chip);
         }
+        chip.R[operands.Rd as usize] = rd;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct ADD;
+
+impl Instruction for ADD {
+    fn mnemonic(&self) -> &'static str {
+        "add"
+    }
+    fn get_category(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<(Category, Operands), Vec<String>> {
+        // get operands
+        let args = hp::get_all_numbers(line)?;
+        let mut errors: Vec<String> = Vec::new();
+
+        let mut operands = Operands::new();
+        let category = if hp::is_Rd_Rn_immed(self.mnemonic(), line) {
+            operands.immed = args[2] as u32;
+            error::check_imm12(operands.immed, &mut errors);
+            Category::Immediate
+        } else if hp::is_Rd_Rn_Rm(self.mnemonic(), line) {
+            operands.Rm = args[2] as u8;
+            Category::Register
+        } else if hp::is_Rd_Rm(self.mnemonic(), line) {
+            Category::Default
+        } else {
+            return Err(error::invalid_args(line));
+        };
+        operands.Rd = args[0] as u8;
+        operands.Rn = args[1] as u8;
+
+        if errors.is_empty() {
+            Ok((category, operands))
+        } else {
+            Err(errors)
+        }
+    }
+    fn execute(
+        &self,
+        s_suffix: bool,
+        category: Category,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        let rn = chip.R[operands.Rn as usize];
+        let num = match category {
+            Category::Immediate => operands.immed,
+            Category::Register => chip.R[operands.Rm as usize],
+            Category::Default => chip.R[operands.Rd as usize],
+        };
+        let (rd, overflow) = rn.overflowing_add(num);
+        // set aspr flags
+        if s_suffix {
+            // set N and Z flags
+            hp::set_nz_flags(rd, chip);
+            // TODO: Fix carry and overflow handling.
+            // set Carry Flag
+            chip.C = overflow;
+            // set Overflow Flag
+            chip.V = overflow && !(rn.checked_neg().is_some() != num.checked_neg().is_some());
+        }
+        chip.R[operands.Rd as usize] = rd;
         Ok(())
     }
 }

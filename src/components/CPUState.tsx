@@ -15,7 +15,7 @@ export default function CPUState() {
     const [cpu, setCPU] = useState<CPU>({ R: new Array(16).fill("0"), N: false, Z: false, C: false, V: false });
 
     const aspr_active = (active: boolean) => (
-        active ? "font-bold text-gray-700" : "text-zinc-300"
+        active ? "text-gray-800" : "text-zinc-200"
     );
     useEffect(() => {
         if (update_cpu) {
@@ -28,7 +28,7 @@ export default function CPUState() {
         }
     }, [update_cpu]);
     return (
-        <div id="CPU" className="text-white px-2 py-3 overflow-scroll">
+        <div id="CPU" className="text-white px-2 py-3 overflow-scroll text">
             <h2>Register Values (32-bit)</h2>
             <select onChange={() => setUpdateCPU(true)} defaultValue={"unsigned"} ref={format} title="Display Format of register values." className="block text-zinc-800 my-2 mx-auto p-1 rounded-sm">
                 <option value="unsigned">Unsigned Integer</option>
@@ -44,11 +44,11 @@ export default function CPUState() {
                 <span>LR: </span><span>{cpu.R[14]}</span>
                 <span>PC: </span><span>{cpu.R[15]}</span>
                 <span>APSR</span>
-                <span>
-                    <span className={aspr_active(cpu.N)}>N</span>
-                    <span className={aspr_active(cpu.Z)}>Z</span>
-                    <span className={aspr_active(cpu.C)}>C</span>
-                    <span className={aspr_active(cpu.V)}>V</span>
+                <span className=" text-base font-bold text-gray-800">
+                    <span className={"font-sans mx-0.5 " + aspr_active(cpu.N)}>N</span>
+                    <span className={"font-sans mx-0.5 " + aspr_active(cpu.Z)}>Z</span>
+                    <span className={"font-sans mx-0.5 " + aspr_active(cpu.C)}>C</span>
+                    <span className={"font-sans mx-0.5 " + aspr_active(cpu.V)}>V</span>
                 </span>
             </div>
         </div >

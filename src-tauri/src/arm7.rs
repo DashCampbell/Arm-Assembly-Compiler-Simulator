@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::helpers as hp;
 pub use crate::instructions::*;
@@ -11,7 +11,7 @@ pub struct Operands {
     pub Rn: u8,
     pub immed: u32,
     pub Rm: u8,
-    pub label: String,
+    pub label: usize, // stores the index of an instruction line
     pub shift: String,
     pub rotation: u8,
     pub lsb: u8,
@@ -27,7 +27,7 @@ impl Operands {
             Rn: 0,
             immed: 0,
             Rm: 0,
-            label: "".into(),
+            label: 0,
             shift: "".into(),
             rotation: 0,
             lsb: 0,
@@ -39,36 +39,98 @@ impl Operands {
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq)]
-/// Instructions normally have sperate encodings for immediate and register operands
-pub enum Encoding {
-    // Immediate Encoding type
-    ImmT1,
-    ImmT2,
-    ImmT3,
-    ImmT4,
-    // Register Encoding type
-    RegT1,
-    RegT2,
-    RegT3,
-    RegT4,
+/// Instruction Sub-Category, named Category for convenience.
+pub enum Category {
+    Immediate,
+    Register,
+    Default,
 }
 
+/// Condition Codes
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ConditionCode {
+    EQ,
+    NE,
+    CS,
+    CC,
+    MI,
+    PL,
+    VS,
+    VC,
+    HI,
+    LS,
+    GE,
+    LT,
+    GT,
+    LE,
+    AL,
+}
+
+impl FromStr for ConditionCode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "eq" => Ok(ConditionCode::EQ),
+            "ne" => Ok(ConditionCode::NE),
+            "cs" | "hs" => Ok(ConditionCode::CS),
+            "cc" | "lo" => Ok(ConditionCode::CC),
+            "mi" => Ok(ConditionCode::MI),
+            "pl" => Ok(ConditionCode::PL),
+            "vs" => Ok(ConditionCode::VS),
+            "vc" => Ok(ConditionCode::VC),
+            "hi" => Ok(ConditionCode::HI),
+            "ls" => Ok(ConditionCode::LS),
+            "ge" => Ok(ConditionCode::GE),
+            "lt" => Ok(ConditionCode::LT),
+            "gt" => Ok(ConditionCode::GT),
+            "le" => Ok(ConditionCode::LE),
+            "al" => Ok(ConditionCode::AL),
+            _ => Err(format!("{} is not a condition code", s)),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+/// Extensions that may be attached to mnemonics.
+pub struct MnemonicExtension {
+    pub cc: Option<ConditionCode>, // <cc> conditional code
+    pub s: bool,                   // s flag
+    pub w: bool,                   // .w extension
+}
+impl MnemonicExtension {
+    pub fn new() -> Self {
+        MnemonicExtension {
+            cc: None,
+            s: false,
+            w: false,
+        }
+    }
+}
 /// Contains an instruction line and metadata
 struct Line {
     /// Used for error messages
     line: String,
     mnemonic: String,
+    extension: MnemonicExtension,
     /// Used to run line.
-    encoding: Encoding,
+    category: Category,
     /// Used to run line.
     operands: Operands,
 }
 impl Line {
-    fn new(mnemonic: String, line: String, encoding: Encoding, operands: Operands) -> Self {
+    fn new(
+        mnemonic: String,
+        line: String,
+        extension: MnemonicExtension,
+        category: Category,
+        operands: Operands,
+    ) -> Self {
         Line {
             mnemonic,
             line,
-            encoding,
+            extension,
+            category,
             operands,
         }
     }
@@ -90,6 +152,7 @@ impl Program {
     pub fn new() -> Self {
         let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
         instructions.insert("mov".into(), Box::new(MOV {}));
+        instructions.insert("add".into(), Box::new(ADD {}));
 
         Program {
             labels: HashMap::new(),
@@ -106,49 +169,74 @@ impl Program {
         &mut self,
         mnemonic: &String,
         line: &String,
-        encoding: Encoding,
+        extension: MnemonicExtension,
+        category: Category,
         operands: Operands,
     ) {
         self.lines.push(Line::new(
             mnemonic.clone(),
             line.clone(),
-            encoding,
+            extension,
+            category,
             operands,
         ));
     }
     /// Returns the mnemonic of a given line, if there is one.
-    pub fn find_mnemonic(&self, line: &String) -> Option<String> {
+    /// Warning: In implementation, the line is converted to lowercase first before being passed to this function.
+    pub fn find_mnemonic(&self, line: &String) -> Option<(String, MnemonicExtension)> {
         // Get the first word.
         let mut line = match line.split_whitespace().next() {
             Some(line) => line,
             None => return None,
         };
-        // NOTE: An instruction cannot have a condition code and s flag extension at the same time.
+        // contains metadata on extensions to mnemonic
+        let mut extension = MnemonicExtension::new();
 
-        // check for condition code extension
-        let re_cc = Regex::new(hp::condition_codes()).unwrap();
-        if line.len() > 2 && re_cc.is_match(&line[line.len() - 2..]) {
-            // remove condition code if it exists
-            let line = &line[..line.len() - 2];
+        // assume no extensions on mnemonic
+        if self.instructions.contains_key(line) {
+            return Some((line.to_string(), extension));
+        }
+        // check for .w extension
+        if line.ends_with(".w") {
+            line = &line[..line.len() - 2];
+            extension.w = true;
             if self.instructions.contains_key(line) {
-                return Some(line.to_string());
+                return Some((line.to_string(), extension));
             }
         }
-        // remove S flag if it exists
+        // assume condition code extension
+        let re_cc = Regex::new(hp::condition_codes()).unwrap();
+        let cc = &line[line.len() - 2..];
+        if line.len() > 2 && re_cc.is_match(cc) {
+            let line = &line[..line.len() - 2];
+
+            // only contains condition code
+            if self.instructions.contains_key(line) {
+                extension.cc = Some(ConditionCode::from_str(cc).unwrap());
+                return Some((line.to_string(), extension));
+            }
+            // assume S flag is also set
+            if line.ends_with('s') && self.instructions.contains_key(&line[..line.len() - 1]) {
+                extension.cc = Some(ConditionCode::from_str(cc).unwrap());
+                extension.s = true;
+                return Some(((&line[..line.len() - 1]).to_string(), extension));
+            }
+        }
+        // check the S flag and no <cc> is set.
         if line.len() > 1 && line.ends_with('s') {
-            line = &line[..line.len() - 1];
+            if self.instructions.contains_key(&line[..line.len() - 1]) {
+                extension.s = true;
+                return Some(((&line[..line.len() - 1]).to_string(), extension));
+            }
         }
-        if self.instructions.contains_key(line) {
-            Some(line.to_string())
-        } else {
-            None
-        }
+        None
     }
     /// Compiles an instruction.
     /// Returns compile time errors, if instruction is invalid.
     pub fn compile_instruction(
         &mut self,
         mnemonic: &String,
+        extension: MnemonicExtension,
         line: &String,
     ) -> Result<(), Vec<String>> {
         // get instruction
@@ -157,17 +245,11 @@ impl Program {
             .get(mnemonic)
             .expect("mnemonic should be valid.");
 
-        match instruction.get_encoding(line) {
-            Ok((encoding, operands)) => {
-                // TODO: do something with the encoding format.
-                let _encoding_format = instruction.encode(encoding, &operands);
-                // push compiled line onto instruction stack.
-                self.push_line(mnemonic, line, encoding, operands);
+        // push compiled line onto instruction stack. Returns compile errors if any.
+        let (category, operands) = instruction.get_category(&extension, line)?;
+        self.push_line(mnemonic, line, extension, category, operands);
 
-                Ok(())
-            }
-            Err(err) => Err(err),
-        }
+        Ok(())
     }
     /// Runs compiled assembly instuctions
     pub fn run(&self, processor: &mut Processor) -> Result<String, String> {
@@ -181,11 +263,9 @@ impl Program {
                 .get(&line.mnemonic)
                 .expect("run-time error, mnemonic should be valid!");
 
-            // run line
-            if let Err(std_err) = instruction.execute(line.encoding, &line.operands, processor) {
-                // immediately stop running if an error is detected
-                return Err(std_err);
-            }
+            // run line, if a run-time error occurs stop program.
+            instruction.execute(line.extension.s, line.category, &line.operands, processor)?;
+
             processor.PC += 1;
         }
         Ok("".into())

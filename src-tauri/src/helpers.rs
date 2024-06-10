@@ -1,8 +1,19 @@
+use crate::arm7::Processor;
 use regex::Regex;
+
 /// Regex expression for every condition code.
 pub fn condition_codes() -> &'static str {
     r"(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)"
 }
+
+pub fn register() -> &'static str {
+    r"(r\d+|sp|lr|pc)"
+}
+
+pub fn mnemonic_extension() -> &'static str {
+    r"s?(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)?(.w)?"
+}
+
 /// Regex expression for unsigned immediate values
 /// ex: #0x12, #12, #0b1100
 pub fn u_number() -> &'static str {
@@ -29,7 +40,7 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
     let mut numbers: Vec<i64> = Vec::new();
 
-    for mat in Regex::new(format!(r"(r\d+|{})", i_number()).as_str())
+    for mat in Regex::new(format!(r"(r\d+|lr|sp|pc|#[\da-fA-Fx]+|{})", i_number()).as_str())
         .unwrap()
         .find_iter(line)
         .map(|m| m.as_str())
@@ -52,6 +63,13 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
                     mat
                 )),
             }
+        // check special registers
+        } else if mat == "sp" {
+            numbers.push(13);
+        } else if mat == "lr" {
+            numbers.push(14);
+        } else if mat == "pc" {
+            numbers.push(15);
         } else {
             // handle immediate values
             // check for negative value
@@ -67,17 +85,18 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
             } else if is_hex(mat) {
                 // Hexadecimal
                 i64::from_str_radix(&mat[3 + index_offset..], 16)
-            } else {
+            } else if is_dec(mat) {
                 // Immediate Decimal Value
                 (&mat[1 + index_offset..]).parse::<i64>()
+            } else {
+                // invalid immediate value
+                errors.push(format!("{} is not a valid immediate value.", mat));
+                continue;
             };
             // check for out of bounds error
             if let Ok(num) = num {
                 // acceptable values are -2^31 to 2^32 - 1 inclusive
-                const LOWER_BOUND: i64 = -(2 as i64).pow(31);
-                const UPPER_BOUND: i64 = (2 as i64).pow(32) - 1;
-
-                if LOWER_BOUND <= num && num <= UPPER_BOUND {
+                if i64::from(i32::MIN) <= num && num <= i64::from(u32::MAX) {
                     numbers.push(sign * num);
                 } else {
                     errors.push(format!("Immediate value {} is out of bounds.", mat));
@@ -94,8 +113,70 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
         Err(errors)
     }
 }
-pub fn check_s_flag(mnemonic: &str, line: &str) -> bool {
-    Regex::new(format!(r"^{}s", mnemonic).as_str())
-        .unwrap()
-        .is_match(line)
+
+pub fn set_nz_flags(num: u32, chip: &mut Processor) {
+    // set aspr flags
+    chip.N = (num as i32) < 0;
+    chip.Z = num == 0;
+}
+
+pub fn is_Rd_immed(mnemonic: &str, line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^{}{}\s+{}\s*,\s*{}$",
+            mnemonic,
+            mnemonic_extension(),
+            register(),
+            i_number()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+
+pub fn is_Rd_Rm(mnemonic: &str, line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^{}{}\s+{}\s*,\s*{}$",
+            mnemonic,
+            mnemonic_extension(),
+            register(),
+            register()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+
+pub fn is_Rd_Rn_immed(mnemonic: &str, line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^{}{}\s+{}\s*,\s*{}\s*,\s*{}$",
+            mnemonic,
+            mnemonic_extension(),
+            register(),
+            register(),
+            i_number()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+pub fn is_Rd_Rn_Rm(mnemonic: &str, line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^{}{}\s+{}\s*,\s*{}\s*,\s*{}$",
+            mnemonic,
+            mnemonic_extension(),
+            register(),
+            register(),
+            register()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
 }
