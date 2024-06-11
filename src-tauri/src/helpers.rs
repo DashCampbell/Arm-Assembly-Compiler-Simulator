@@ -6,11 +6,11 @@ pub fn condition_codes() -> &'static str {
     r"(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)"
 }
 
-pub fn register() -> &'static str {
+fn register() -> &'static str {
     r"(r\d+|sp|lr|pc)"
 }
 
-pub fn mnemonic_extension() -> &'static str {
+fn mnemonic_extension() -> &'static str {
     r"s?(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)?(.w)?"
 }
 
@@ -122,18 +122,20 @@ pub fn set_nz_flags(num: u32, chip: &mut Processor) {
     println!("{}", num);
 }
 
+#[allow(non_snake_case)]
 pub fn is_Rd_immed(line: &str) -> bool {
     Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), i_number()).as_str())
         .unwrap()
         .is_match(line)
 }
 
+#[allow(non_snake_case)]
 pub fn is_Rd_Rm(line: &str) -> bool {
     Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), register()).as_str())
         .unwrap()
         .is_match(line)
 }
-
+#[allow(non_snake_case)]
 pub fn is_Rd_Rn_immed(line: &str) -> bool {
     Regex::new(
         format!(
@@ -147,6 +149,7 @@ pub fn is_Rd_Rn_immed(line: &str) -> bool {
     .unwrap()
     .is_match(line)
 }
+#[allow(non_snake_case)]
 pub fn is_Rd_Rn_Rm(line: &str) -> bool {
     Regex::new(
         format!(

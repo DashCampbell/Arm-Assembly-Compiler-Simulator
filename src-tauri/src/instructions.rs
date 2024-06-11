@@ -1,5 +1,6 @@
 use crate::arm7::{MnemonicExtension, Operands, Processor};
 use crate::error;
+use crate::error::CompileErr;
 use crate::helpers as hp;
 
 pub trait Instruction: Send + Sync {
@@ -24,7 +25,6 @@ pub trait Instruction: Send + Sync {
 }
 
 // Implement Instructions
-#[derive(Clone)]
 pub struct MOV;
 impl Instruction for MOV {
     fn mnemonic(&self) -> &'static str {
@@ -36,25 +36,21 @@ impl Instruction for MOV {
         line: &str,
     ) -> Result<Operands, Vec<String>> {
         // get operands
-        let mut errors: Vec<String> = Vec::new();
+        let mut errors = CompileErr::new();
         let operands = Operands::from_str(line)?;
         // check constraints
         match operands {
             Operands::Rd_immed { Rd, immed } => {
-                error::check_sp_or_pc(Rd, "Rd", &mut errors);
-                error::check_imm12(immed, &mut errors);
+                errors.check_sp_or_pc(Rd, "Rd");
+                errors.check_imm12(immed);
             }
             Operands::Rd_Rm { Rd, Rm, .. } => {
-                error::check_sp_or_pc(Rd, "Rd", &mut errors);
-                error::check_sp_or_pc(Rm, "Rm", &mut errors);
+                errors.check_sp_or_pc(Rd, "Rd");
+                errors.check_sp_or_pc(Rm, "Rm");
             }
             _ => return Err(error::invalid_args(line)),
         }
-        if errors.is_empty() {
-            Ok(operands)
-        } else {
-            Err(errors)
-        }
+        errors.result(operands)
     }
     fn execute(
         &self,
@@ -77,9 +73,7 @@ impl Instruction for MOV {
     }
 }
 
-#[derive(Clone)]
 pub struct ADD;
-
 impl Instruction for ADD {
     fn mnemonic(&self) -> &'static str {
         "add"
@@ -89,25 +83,21 @@ impl Instruction for ADD {
         _extension: &MnemonicExtension,
         line: &str,
     ) -> Result<Operands, Vec<String>> {
-        let mut errors: Vec<String> = Vec::new();
+        let mut errors = CompileErr::new();
         let operands = Operands::from_str(line)?;
         // check constraints
         match operands {
             Operands::Rd_immed { immed, .. } => {
-                error::check_imm12(immed, &mut errors);
+                errors.check_imm12(immed);
             }
             Operands::Rd_Rm { .. } => {}
             Operands::Rd_Rn_Rm { .. } => {}
             Operands::Rd_Rn_immed { immed, .. } => {
-                error::check_imm12(immed, &mut errors);
+                errors.check_imm12(immed);
             }
             _ => return Err(error::invalid_args(line)),
         }
-        if errors.is_empty() {
-            Ok(operands)
-        } else {
-            Err(errors)
-        }
+        errors.result(operands)
     }
     fn execute(
         &self,
@@ -142,6 +132,64 @@ impl Instruction for ADD {
             chip.V = (a as i32).overflowing_add(b as i32).1;
         }
         chip.R[index] = rd;
+        Ok(())
+    }
+}
+
+pub struct CMP;
+impl Instruction for CMP {
+    fn mnemonic(&self) -> &'static str {
+        "CMP"
+    }
+    fn get_operands(
+        &self,
+        extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        let mut errors = CompileErr::new();
+        let operands = Operands::from_str(line)?;
+
+        // check constraints
+        if extension.s {
+            errors.invalid_s_extension();
+        }
+        match operands {
+            Operands::Rd_immed { Rd, immed } => {
+                if !extension.w {
+                    errors.check_imm8(immed);
+                }
+                errors.check_pc(Rd, "Rd");
+            }
+            Operands::Rd_Rm { Rd, Rm, .. } => {
+                errors.check_pc(Rd, "Rd");
+                errors.check_sp_or_pc(Rm, "Rm");
+            }
+            _ => return Err(error::invalid_args(line)),
+        }
+        errors.result(operands)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        let (a, b) = match *operands {
+            Operands::Rd_immed { Rd, immed } => (chip.R[usize::from(Rd)], immed),
+            Operands::Rd_Rm { Rd, Rm, shift: _ } => {
+                (chip.R[usize::from(Rd)], chip.R[usize::from(Rm)])
+            }
+            _ => return Err(error::invalid_operands()),
+        };
+        // set aspr flags
+        // set N and Z flags
+        let (c, carry) = a.overflowing_sub(b);
+        hp::set_nz_flags(c, chip);
+        // set Carry Flag
+        chip.C = !carry;
+        // set Overflow Flag
+        chip.V = (a as i32).overflowing_sub(b as i32).1;
+
         Ok(())
     }
 }

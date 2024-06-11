@@ -15,7 +15,7 @@ pub enum Shift {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, non_snake_case)]
 /// Instruction Sub-Category, named Category for convenience.
 pub enum Operands {
     Rd_immed {
@@ -175,6 +175,7 @@ impl Program {
         let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
         instructions.insert("mov".into(), Box::new(MOV {}));
         instructions.insert("add".into(), Box::new(ADD {}));
+        instructions.insert("cmp".into(), Box::new(CMP {}));
 
         Program {
             labels: HashMap::new(),
