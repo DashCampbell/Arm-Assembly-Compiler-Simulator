@@ -36,9 +36,9 @@ pub fn is_dec(num: &str) -> bool {
 
 /// Collect all unsigned/signed numbers in a line. Including register numbers, hexadecimal, binary, immediate values, etc..
 /// Returns an error if there are invalid registers, numbers are invalid, out of bounds, etc...
-pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
+pub fn get_all_numbers(line: &str) -> Result<Vec<u32>, Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
-    let mut numbers: Vec<i64> = Vec::new();
+    let mut numbers: Vec<u32> = Vec::new();
 
     for mat in Regex::new(format!(r"(r\d+|lr|sp|pc|#[\da-fA-Fx]+|{})", i_number()).as_str())
         .unwrap()
@@ -47,7 +47,7 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
     {
         if mat.starts_with('r') {
             // handle register numbers
-            match (&mat[1..]).parse::<i64>() {
+            match (&mat[1..]).parse::<u32>() {
                 Ok(n) => {
                     if n > 15 {
                         errors.push(format!(
@@ -71,35 +71,35 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
         } else if mat == "pc" {
             numbers.push(15);
         } else {
-            // handle immediate values
+            // Handle immediate values
             // check for negative value
-            let mut sign: i64 = 1;
-            let mut index_offset = 0; // if there is a minus sign, offset the index by one.
-            if mat.starts_with("#-") {
-                sign = -1;
-                index_offset = 1;
-            }
+            let (sign, index_offset) = if mat.starts_with("#-") {
+                // if there is a minus sign, offset the index by one.
+                (true, 1)
+            } else {
+                (false, 0)
+            };
+            // reject number if it cannot be contained in 32 bits.
             let num = if is_bin(mat) {
                 // Binary
-                i64::from_str_radix(&mat[3 + index_offset..], 2)
+                u32::from_str_radix(&mat[3 + index_offset..], 2)
             } else if is_hex(mat) {
                 // Hexadecimal
-                i64::from_str_radix(&mat[3 + index_offset..], 16)
+                u32::from_str_radix(&mat[3 + index_offset..], 16)
             } else if is_dec(mat) {
                 // Immediate Decimal Value
-                (&mat[1 + index_offset..]).parse::<i64>()
+                (&mat[1 + index_offset..]).parse::<u32>()
             } else {
                 // invalid immediate value
                 errors.push(format!("{} is not a valid immediate value.", mat));
                 continue;
             };
-            // check for out of bounds error
             if let Ok(num) = num {
-                // acceptable values are -2^31 to 2^32 - 1 inclusive
-                if i64::from(i32::MIN) <= num && num <= i64::from(u32::MAX) {
-                    numbers.push(sign * num);
+                // negate number if negative
+                if sign {
+                    numbers.push(num.wrapping_neg());
                 } else {
-                    errors.push(format!("Immediate value {} is out of bounds.", mat));
+                    numbers.push(num);
                 }
             } else {
                 errors.push(format!("Immediate value {} is out of bounds.", mat));
@@ -114,48 +114,30 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<i64>, Vec<String>> {
     }
 }
 
+/// Sets the N and Z aspr flags
 pub fn set_nz_flags(num: u32, chip: &mut Processor) {
     // set aspr flags
     chip.N = (num as i32) < 0;
     chip.Z = num == 0;
+    println!("{}", num);
 }
 
-pub fn is_Rd_immed(mnemonic: &str, line: &str) -> bool {
-    Regex::new(
-        format!(
-            r"^{}{}\s+{}\s*,\s*{}$",
-            mnemonic,
-            mnemonic_extension(),
-            register(),
-            i_number()
-        )
-        .as_str(),
-    )
-    .unwrap()
-    .is_match(line)
+pub fn is_Rd_immed(line: &str) -> bool {
+    Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), i_number()).as_str())
+        .unwrap()
+        .is_match(line)
 }
 
-pub fn is_Rd_Rm(mnemonic: &str, line: &str) -> bool {
-    Regex::new(
-        format!(
-            r"^{}{}\s+{}\s*,\s*{}$",
-            mnemonic,
-            mnemonic_extension(),
-            register(),
-            register()
-        )
-        .as_str(),
-    )
-    .unwrap()
-    .is_match(line)
+pub fn is_Rd_Rm(line: &str) -> bool {
+    Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), register()).as_str())
+        .unwrap()
+        .is_match(line)
 }
 
-pub fn is_Rd_Rn_immed(mnemonic: &str, line: &str) -> bool {
+pub fn is_Rd_Rn_immed(line: &str) -> bool {
     Regex::new(
         format!(
-            r"^{}{}\s+{}\s*,\s*{}\s*,\s*{}$",
-            mnemonic,
-            mnemonic_extension(),
+            r"^\S+\s+{}\s*,\s*{}\s*,\s*{}$",
             register(),
             register(),
             i_number()
@@ -165,12 +147,10 @@ pub fn is_Rd_Rn_immed(mnemonic: &str, line: &str) -> bool {
     .unwrap()
     .is_match(line)
 }
-pub fn is_Rd_Rn_Rm(mnemonic: &str, line: &str) -> bool {
+pub fn is_Rd_Rn_Rm(line: &str) -> bool {
     Regex::new(
         format!(
-            r"^{}{}\s+{}\s*,\s*{}\s*,\s*{}$",
-            mnemonic,
-            mnemonic_extension(),
+            r"^\S+\s+{}\s*,\s*{}\s*,\s*{}$",
             register(),
             register(),
             register()

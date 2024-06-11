@@ -1,49 +1,75 @@
 use regex::Regex;
 use std::{collections::HashMap, str::FromStr};
 
-use crate::helpers as hp;
 pub use crate::instructions::*;
+use crate::{error, helpers as hp};
 
-#[derive(Debug)]
-#[allow(non_snake_case)]
-pub struct Operands {
-    pub Rd: u8,
-    pub Rn: u8,
-    pub immed: u32,
-    pub Rm: u8,
-    pub label: usize, // stores the index of an instruction line
-    pub shift: String,
-    pub rotation: u8,
-    pub lsb: u8,
-    pub width: u8,
-    pub registers: Vec<u8>,
-    pub Rd_lo: u8,
-    pub Rd_hi: u8,
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Shifts applied to registers. Shifts an element by k bits, k should be <= 32.
+pub enum Shift {
+    LSL(u8),
+    LSR(u8),
+    ASR(u8),
+    ROR(u8),
+    RRX,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(non_camel_case_types)]
+/// Instruction Sub-Category, named Category for convenience.
+pub enum Operands {
+    Rd_immed {
+        Rd: u8,
+        immed: u32,
+    },
+    Rd_Rm {
+        Rd: u8,
+        Rm: u8,
+        shift: Option<Shift>,
+    },
+    Rd_Rn_immed {
+        Rd: u8,
+        Rn: u8,
+        immed: u32,
+    },
+    Rd_Rn_Rm {
+        Rd: u8,
+        Rn: u8,
+        Rm: u8,
+        shift: Option<Shift>,
+    },
 }
 impl Operands {
-    pub fn new() -> Self {
-        Operands {
-            Rd: 0,
-            Rn: 0,
-            immed: 0,
-            Rm: 0,
-            label: 0,
-            shift: "".into(),
-            rotation: 0,
-            lsb: 0,
-            width: 0,
-            registers: Vec::new(),
-            Rd_lo: 0,
-            Rd_hi: 0,
+    pub fn from_str(line: &str) -> Result<Self, Vec<String>> {
+        let args = hp::get_all_numbers(line)?;
+        if hp::is_Rd_immed(line) {
+            Ok(Self::Rd_immed {
+                Rd: args[0] as u8,
+                immed: args[1],
+            })
+        } else if hp::is_Rd_Rm(line) {
+            Ok(Self::Rd_Rm {
+                Rd: args[0] as u8,
+                Rm: args[1] as u8,
+                shift: None,
+            })
+        } else if hp::is_Rd_Rn_immed(line) {
+            Ok(Self::Rd_Rn_immed {
+                Rd: args[0] as u8,
+                Rn: args[1] as u8,
+                immed: args[2],
+            })
+        } else if hp::is_Rd_Rn_Rm(line) {
+            Ok(Self::Rd_Rn_Rm {
+                Rd: args[0] as u8,
+                Rn: args[1] as u8,
+                Rm: args[2] as u8,
+                shift: None,
+            })
+        } else {
+            Err(error::invalid_args(line))
         }
     }
-}
-#[derive(Debug, Clone, Copy, PartialEq)]
-/// Instruction Sub-Category, named Category for convenience.
-pub enum Category {
-    Immediate,
-    Register,
-    Default,
 }
 
 /// Condition Codes
@@ -114,8 +140,6 @@ struct Line {
     mnemonic: String,
     extension: MnemonicExtension,
     /// Used to run line.
-    category: Category,
-    /// Used to run line.
     operands: Operands,
 }
 impl Line {
@@ -123,14 +147,12 @@ impl Line {
         mnemonic: String,
         line: String,
         extension: MnemonicExtension,
-        category: Category,
         operands: Operands,
     ) -> Self {
         Line {
             mnemonic,
             line,
             extension,
-            category,
             operands,
         }
     }
@@ -170,14 +192,12 @@ impl Program {
         mnemonic: &String,
         line: &String,
         extension: MnemonicExtension,
-        category: Category,
         operands: Operands,
     ) {
         self.lines.push(Line::new(
             mnemonic.clone(),
             line.clone(),
             extension,
-            category,
             operands,
         ));
     }
@@ -246,8 +266,8 @@ impl Program {
             .expect("mnemonic should be valid.");
 
         // push compiled line onto instruction stack. Returns compile errors if any.
-        let (category, operands) = instruction.get_category(&extension, line)?;
-        self.push_line(mnemonic, line, extension, category, operands);
+        let operands = instruction.get_operands(&extension, line)?;
+        self.push_line(mnemonic, line, extension, operands);
 
         Ok(())
     }
@@ -264,7 +284,7 @@ impl Program {
                 .expect("run-time error, mnemonic should be valid!");
 
             // run line, if a run-time error occurs stop program.
-            instruction.execute(line.extension.s, line.category, &line.operands, processor)?;
+            instruction.execute(line.extension.s, &line.operands, processor)?;
 
             processor.PC += 1;
         }
