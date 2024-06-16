@@ -1,11 +1,58 @@
 /// Contains functions to help with error handling.
 use crate::arm7::Operands;
 
-/// Contains compile time errors, and error handling functions.
-pub struct CompileErr(Vec<String>);
+/// Stores and handles general compile time errors
+pub struct CompileErr {
+    errors: Vec<String>,
+    line_number: usize,
+}
 impl CompileErr {
     pub fn new() -> Self {
-        CompileErr(Vec::new())
+        CompileErr {
+            errors: Vec::new(),
+            line_number: 1,
+        }
+    }
+    /// Returns the operands if there are no compile errors, otherwise returns a list of compile errors.
+    pub fn result(self) -> Result<(), Vec<String>> {
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors)
+        }
+    }
+    /// For returning the current list of compile errors early
+    pub fn early_return(self) -> Result<(), Vec<String>> {
+        Err(self.errors)
+    }
+    /// Updates the line number for error messages
+    pub fn update_line_number(&mut self, line_number: usize) {
+        // The line number passed is from an iterator, so the parameter starts at zero.
+        self.line_number = line_number + 1;
+    }
+    /// Appends a compile time error message
+    pub fn push_message(&mut self, message: &str) {
+        self.errors
+            .push(format!("Line {}: {}", self.line_number, message));
+    }
+    /// Appends a list of compile time error messages.
+    pub fn extend(&mut self, errors: Vec<String>) {
+        self.errors.extend(
+            errors
+                .into_iter()
+                .map(|err| format!("Line {}: {}", self.line_number, err)),
+        )
+    }
+    pub fn message(error: String) -> Vec<String> {
+        vec![error]
+    }
+}
+
+/// Contains compile time errors for instructions, and error handling functions related to instructions.
+pub struct InstructionCompileErr(Vec<String>);
+impl InstructionCompileErr {
+    pub fn new() -> Self {
+        InstructionCompileErr(Vec::new())
     }
     /// Returns the operands if there are no compile errors, otherwise returns a list of compile errors.
     pub fn result(self, operands: Operands) -> Result<Operands, Vec<String>> {
@@ -18,8 +65,7 @@ impl CompileErr {
     /// Error if immediate value cannot be contained in 12 bits.
     pub fn check_imm8(&mut self, immed: u32) {
         if immed > u32::from(u8::MAX) {
-            self.0
-                .push("Immediate value must be within 12 bits.".into());
+            self.0.push("Immediate value must be within 8 bits.".into());
         }
     }
 
@@ -49,10 +95,12 @@ impl CompileErr {
         self.check_pc(r, reg);
         self.check_sp(r, reg);
     }
-    /// Error message when S extension is not allowed
-    pub fn invalid_s_extension(&mut self) {
-        self.0
-            .push("S extension is not allowed for this instruction.".to_string());
+    /// Pushes error message when S extension is not allowed
+    pub fn invalid_s_extension(&mut self, s: bool) {
+        if s {
+            self.0
+                .push("S extension is not allowed for this instruction.".to_string());
+        }
     }
 }
 

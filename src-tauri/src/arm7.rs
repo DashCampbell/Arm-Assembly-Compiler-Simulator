@@ -38,6 +38,9 @@ pub enum Operands {
         Rm: u8,
         shift: Option<Shift>,
     },
+    label {
+        label: usize,
+    },
 }
 impl Operands {
     pub fn from_str(line: &str) -> Result<Self, Vec<String>> {
@@ -91,6 +94,47 @@ pub enum ConditionCode {
     LE,
     AL,
 }
+impl ConditionCode {
+    #[allow(non_snake_case)]
+    fn condition_test(&self, N: bool, Z: bool, C: bool, V: bool) -> bool {
+        match *self {
+            Self::EQ => Z,
+            Self::NE => !Z,
+            Self::CS => C,
+            Self::CC => !C,
+            Self::MI => N,
+            Self::PL => !N,
+            Self::VS => V,
+            Self::VC => !V,
+            Self::HI => C && !Z,
+            Self::LS => !C || Z,
+            Self::GE => (N && V) || (!N && !V),
+            Self::LT => (N && !V) || (!N && V),
+            Self::GT => !Z && ((N && V) || (!N && !V)),
+            Self::LE => Z || (N && !V) || (!N && V),
+            Self::AL => true,
+        }
+    }
+    pub fn opposite_condition(&self) -> Self {
+        match *self {
+            Self::EQ => Self::NE,
+            Self::NE => Self::EQ,
+            Self::CS => Self::CC,
+            Self::CC => Self::CS,
+            Self::MI => Self::PL,
+            Self::PL => Self::MI,
+            Self::VS => Self::VC,
+            Self::VC => Self::VS,
+            Self::HI => Self::LS,
+            Self::LS => Self::HI,
+            Self::GE => Self::LT,
+            Self::LT => Self::GE,
+            Self::GT => Self::LE,
+            Self::LE => Self::GT,
+            Self::AL => Self::AL,
+        }
+    }
+}
 
 impl FromStr for ConditionCode {
     type Err = String;
@@ -118,7 +162,7 @@ impl FromStr for ConditionCode {
 }
 
 #[derive(Debug, PartialEq)]
-/// Extensions that may be attached to mnemonics.
+/// Metadata & Extensions that may be attached to mnemonics.
 pub struct MnemonicExtension {
     pub cc: Option<ConditionCode>, // <cc> conditional code
     pub s: bool,                   // s flag
@@ -172,15 +216,10 @@ pub struct Program {
 
 impl Program {
     pub fn new() -> Self {
-        let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
-        instructions.insert("mov".into(), Box::new(MOV {}));
-        instructions.insert("add".into(), Box::new(ADD {}));
-        instructions.insert("cmp".into(), Box::new(CMP {}));
-
         Program {
             labels: HashMap::new(),
             lines: Vec::new(),
-            instructions,
+            instructions: all_instructions(),
         }
     }
     pub fn reset(&mut self) {
@@ -252,6 +291,37 @@ impl Program {
         }
         None
     }
+    // Compiles a branch instruction
+    /// Returns compile time errors, if instruction is invalid.
+    pub fn compile_branch_instruction(
+        &mut self,
+        mnemonic: &String,
+        extension: MnemonicExtension,
+        line: &String,
+        labels: &HashMap<&str, usize>,
+    ) -> Result<(), Vec<String>> {
+        if extension.s {
+            return Err(vec![
+                "A branch instruction cannot have the S flag set.".into()
+            ]);
+        }
+        // push compiled line onto instruction stack. Returns compile errors if any.
+        if hp::is_label(line) {
+            // get the string label
+            let label = Regex::new(r"\w+$").unwrap().find(line).unwrap().as_str();
+            let operands = Operands::label {
+                // Validate label
+                label: match labels.get(label) {
+                    Some(index) => *index,
+                    None => return Err(vec![format!("Label \"{}\" does not exist.", label)]),
+                },
+            };
+            self.push_line(mnemonic, line, extension, operands);
+            Ok(())
+        } else {
+            Err(vec!["Not a branch instruction.".into()])
+        }
+    }
     /// Compiles an instruction.
     /// Returns compile time errors, if instruction is invalid.
     pub fn compile_instruction(
@@ -273,21 +343,27 @@ impl Program {
         Ok(())
     }
     /// Runs compiled assembly instuctions
+    /// Returns Standard Output, or Standard Error message
     pub fn run(&self, processor: &mut Processor) -> Result<String, String> {
         // Starting at the PC index.
         while processor.PC < self.lines.len() {
             // get the line to run
             let line = &self.lines[processor.PC];
-            // get the instruction
+            processor.PC += 1;
+
             let instruction = self
                 .instructions
                 .get(&line.mnemonic)
                 .expect("run-time error, mnemonic should be valid!");
-
+            // Compute condition code first.
+            if let Some(cc) = line.extension.cc {
+                // skip instruction if condition code not passed
+                if !cc.condition_test(processor.N, processor.Z, processor.C, processor.V) {
+                    continue;
+                }
+            }
             // run line, if a run-time error occurs stop program.
             instruction.execute(line.extension.s, &line.operands, processor)?;
-
-            processor.PC += 1;
         }
         Ok("".into())
     }
@@ -297,13 +373,15 @@ impl Program {
 #[allow(non_snake_case)]
 /// Contains both CPU and Memory information.
 pub struct Processor {
-    pub R: [u32; 16],
+    pub R: [u32; 14],
     pub N: bool,
     pub Z: bool,
     pub C: bool,
     pub V: bool,
+    /// Link Register
+    pub LR: usize,
     /// PC register, stores the index of the next intruction.
-    PC: usize,
+    pub PC: usize,
     // size = 1kb = 1024 bytes
     // 1 byte = 8 bits
     /// RAM
@@ -312,11 +390,12 @@ pub struct Processor {
 impl Processor {
     pub fn new() -> Self {
         Processor {
-            R: [0; 16],
+            R: [0; 14],
             N: false,
             Z: false,
             C: false,
             V: false,
+            LR: 0,
             PC: 0,
             memory: [0; 1024],
         }

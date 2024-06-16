@@ -14,6 +14,10 @@ fn mnemonic_extension() -> &'static str {
     r"s?(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)?(.w)?"
 }
 
+fn is_comment_or_whitespace(line: &str) -> bool {
+    Regex::new(r"^(\s*\/\/)|^(\s*$)").unwrap().is_match(line)
+}
+
 /// Regex expression for unsigned immediate values
 /// ex: #0x12, #12, #0b1100
 pub fn u_number() -> &'static str {
@@ -119,7 +123,6 @@ pub fn set_nz_flags(num: u32, chip: &mut Processor) {
     // set aspr flags
     chip.N = (num as i32) < 0;
     chip.Z = num == 0;
-    println!("{}", num);
 }
 
 #[allow(non_snake_case)]
@@ -162,4 +165,9 @@ pub fn is_Rd_Rn_Rm(line: &str) -> bool {
     )
     .unwrap()
     .is_match(line)
+}
+
+/// Determines if line is in the format "mnemonic <extensions> <label>"
+pub fn is_label(line: &str) -> bool {
+    Regex::new(r"^\S+\s+\w+$").unwrap().is_match(line)
 }

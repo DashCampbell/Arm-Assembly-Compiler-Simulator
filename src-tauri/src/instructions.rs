@@ -1,8 +1,21 @@
+use std::collections::HashMap;
+
 use crate::arm7::{MnemonicExtension, Operands, Processor};
 use crate::error;
-use crate::error::CompileErr;
+use crate::error::InstructionCompileErr;
 use crate::helpers as hp;
 
+/// Returns a Hashmap for all instructions, the key is the instruction's mnemonic
+pub fn all_instructions() -> HashMap<String, Box<dyn Instruction>> {
+    let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
+    instructions.insert("mov".into(), Box::new(MOV {}));
+    instructions.insert("add".into(), Box::new(ADD {}));
+    instructions.insert("cmp".into(), Box::new(CMP {}));
+    instructions.insert("b".into(), Box::new(B {}));
+    instructions.insert("bl".into(), Box::new(BL {}));
+
+    instructions
+}
 pub trait Instruction: Send + Sync {
     /// The instruction's mnemonic, must be lowercase for text parsing.
     fn mnemonic(&self) -> &'static str;
@@ -36,7 +49,7 @@ impl Instruction for MOV {
         line: &str,
     ) -> Result<Operands, Vec<String>> {
         // get operands
-        let mut errors = CompileErr::new();
+        let mut errors = InstructionCompileErr::new();
         let operands = Operands::from_str(line)?;
         // check constraints
         match operands {
@@ -83,7 +96,7 @@ impl Instruction for ADD {
         _extension: &MnemonicExtension,
         line: &str,
     ) -> Result<Operands, Vec<String>> {
-        let mut errors = CompileErr::new();
+        let mut errors = InstructionCompileErr::new();
         let operands = Operands::from_str(line)?;
         // check constraints
         match operands {
@@ -146,13 +159,11 @@ impl Instruction for CMP {
         extension: &MnemonicExtension,
         line: &str,
     ) -> Result<Operands, Vec<String>> {
-        let mut errors = CompileErr::new();
+        let mut errors = InstructionCompileErr::new();
         let operands = Operands::from_str(line)?;
 
         // check constraints
-        if extension.s {
-            errors.invalid_s_extension();
-        }
+        errors.invalid_s_extension(extension.s);
         match operands {
             Operands::Rd_immed { Rd, immed } => {
                 if !extension.w {
@@ -190,6 +201,66 @@ impl Instruction for CMP {
         // set Overflow Flag
         chip.V = (a as i32).overflowing_sub(b as i32).1;
 
+        Ok(())
+    }
+}
+
+pub struct B;
+
+impl Instruction for B {
+    fn mnemonic(&self) -> &'static str {
+        "b"
+    }
+    /// this function never gets called
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        _line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Ok(Operands::label { label: 0 })
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        match *operands {
+            Operands::label { label } => {
+                chip.PC = label;
+            }
+            _ => return Err(error::invalid_operands()),
+        }
+        Ok(())
+    }
+}
+
+pub struct BL;
+impl Instruction for BL {
+    fn mnemonic(&self) -> &'static str {
+        "bl"
+    }
+    /// this function for this struct never gets called
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        _line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Ok(Operands::label { label: 0 })
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        match *operands {
+            Operands::label { label } => {
+                chip.LR = chip.PC; // store PC register into Link register
+                chip.PC = label;
+            }
+            _ => return Err(error::invalid_operands()),
+        }
         Ok(())
     }
 }

@@ -10,7 +10,7 @@ export default function Terminal() {
                 {std_out.map((out, i) => {
                     switch (out.type) {
                         case "compile":
-                            return <p key={i} className=" text-green-500 font-bold">{out.message}</p>
+                            return <p key={i} className="text-yellow-500 font-bold">{out.message}</p>
                         case "run":
                             return <p key={i} className="text-green-500 font-bold">{out.message}</p>
                         case "error":
