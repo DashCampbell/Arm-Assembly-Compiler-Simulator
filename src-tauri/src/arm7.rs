@@ -1,8 +1,13 @@
 use regex::Regex;
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, fmt::format, str::FromStr, sync::Mutex, thread, time::Duration};
+use tauri::{window, State, Window};
 
 pub use crate::instructions::*;
-use crate::{error, helpers as hp};
+use crate::{
+    error::{self, CompileErr},
+    helpers as hp,
+    Process::{compile, GlobalKillSwitch},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Shifts applied to registers. Shifts an element by k bits, k should be <= 32.
@@ -12,6 +17,105 @@ pub enum Shift {
     ASR(u8),
     ROR(u8),
     RRX,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ITStatus {
+    OUT,
+    IN,
+    LAST,
+}
+
+/// Contains all labels, and handles all label logic
+#[derive(Debug)]
+pub struct Labels {
+    global_labels: HashMap<String, usize>,
+    local_labels: HashMap<String, usize>,
+}
+impl Labels {
+    pub fn new() -> Self {
+        Self {
+            global_labels: HashMap::new(),
+            local_labels: HashMap::new(),
+        }
+    }
+    pub fn get_global_labels(config: &compile::Config) -> Result<Self, Vec<String>> {
+        let mut labels = Self::new();
+        // The global PC index, used for labels.
+        let mut pc = 0usize;
+        let mut errors = CompileErr::new();
+        let global_regex = Regex::new(r"\s*.global\s+\w+\s*").unwrap();
+
+        for (file_name, file_content) in config.read_contents()? {
+            errors.update_current_file(file_name.clone());
+            // get all local labels first
+            labels.get_local_labels(&file_content, &mut pc, &mut errors);
+
+            // get all global directives in a file
+            for mat in global_regex.find_iter(&file_content) {
+                let line = compile::preprocess_line(mat.as_str());
+                let words: Vec<&str> = line.split_whitespace().collect();
+                // get the label name and index
+                let (label, index) = (
+                    words[1].to_string(),
+                    *labels.local_labels.get(words[1]).ok_or_else(|| {
+                        CompileErr::message(format!(
+                            "Global label \"{}\" is not defined in the file \"{}\".",
+                            words[1], file_name
+                        ))
+                    })?,
+                );
+                if let Some(_) = labels.global_labels.insert(label, index) {
+                    return Err(CompileErr::message(format!("Global label \"{}\" was already defined, attempting to overwrite global label in file \"{}\".", words[1], file_name)));
+                }
+            }
+        }
+        labels.local_labels.clear();
+        Ok(labels)
+    }
+    /// Retrieves all local labels inside a file
+    pub fn get_local_labels(
+        &mut self,
+        file_content: &String,
+        pc: &mut usize,
+        errors: &mut CompileErr,
+    ) {
+        let re_label = Regex::new(r"^[a-zA-Z_]+\w*\s*:$").unwrap();
+        let mut local_labels: HashMap<String, usize> = HashMap::new();
+
+        for (line_number, line) in file_content.lines().enumerate() {
+            errors.update_line_number(line_number); // update line number for error messages
+            let line = compile::preprocess_line(line);
+
+            // skip if white space, or directive, or IT instruction or directive
+            if line.is_empty() || line.to_lowercase().starts_with("it") || line.starts_with('.') {
+                continue;
+            }
+            // If it is a label, store it in the Hashmap of local_labels.
+            if line.ends_with(':') {
+                if re_label.is_match(line) {
+                    local_labels.insert(line.trim_end_matches(':').into(), *pc);
+                } else {
+                    errors.push_message("Invalid label.");
+                }
+            } else {
+                *pc += 1; // increment PC for each instruction.
+            }
+        }
+        self.local_labels = local_labels;
+    }
+    fn get(&self, label: &str) -> Result<usize, Vec<String>> {
+        if self.global_labels.contains_key(label) {
+            Ok(*self.global_labels.get(label).unwrap())
+        } else if self.local_labels.contains_key(label) {
+            Ok(*self.local_labels.get(label).unwrap())
+        } else {
+            Err(CompileErr::message(format!(
+                "Label \"{}\" does not exist.",
+                label
+            )))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -96,7 +200,7 @@ pub enum ConditionCode {
 }
 impl ConditionCode {
     #[allow(non_snake_case)]
-    fn condition_test(&self, N: bool, Z: bool, C: bool, V: bool) -> bool {
+    pub fn condition_test(&self, N: bool, Z: bool, C: bool, V: bool) -> bool {
         match *self {
             Self::EQ => Z,
             Self::NE => !Z,
@@ -167,6 +271,7 @@ pub struct MnemonicExtension {
     pub cc: Option<ConditionCode>, // <cc> conditional code
     pub s: bool,                   // s flag
     pub w: bool,                   // .w extension
+    pub it_status: ITStatus,       // in/out/last
 }
 impl MnemonicExtension {
     pub fn new() -> Self {
@@ -174,6 +279,7 @@ impl MnemonicExtension {
             cc: None,
             s: false,
             w: false,
+            it_status: ITStatus::OUT,
         }
     }
 }
@@ -212,6 +318,8 @@ pub struct Program {
     lines: Vec<Line>,
     /// The Arm Intruction Set
     instructions: HashMap<String, Box<dyn Instruction>>,
+    /// The delay between each instruction
+    delay: u16,
 }
 
 impl Program {
@@ -220,11 +328,13 @@ impl Program {
             labels: HashMap::new(),
             lines: Vec::new(),
             instructions: all_instructions(),
+            delay: 0,
         }
     }
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, delay: u16) {
         self.labels.clear();
         self.lines.clear();
+        self.delay = delay;
     }
     /// Pushes a new compiled line.
     fn push_line(
@@ -293,33 +403,28 @@ impl Program {
     }
     // Compiles a branch instruction
     /// Returns compile time errors, if instruction is invalid.
-    pub fn compile_branch_instruction(
+    fn compile_branch_instruction(
         &mut self,
-        mnemonic: &String,
-        extension: MnemonicExtension,
+        extension: &MnemonicExtension,
         line: &String,
-        labels: &HashMap<&str, usize>,
-    ) -> Result<(), Vec<String>> {
+        labels: &Labels,
+    ) -> Result<Operands, Vec<String>> {
         if extension.s {
-            return Err(vec![
-                "A branch instruction cannot have the S flag set.".into()
-            ]);
+            return Err(CompileErr::message(
+                "A branch instruction cannot have the S flag set.".into(),
+            ));
         }
         // push compiled line onto instruction stack. Returns compile errors if any.
         if hp::is_label(line) {
             // get the string label
             let label = Regex::new(r"\w+$").unwrap().find(line).unwrap().as_str();
+            // Validate label
             let operands = Operands::label {
-                // Validate label
-                label: match labels.get(label) {
-                    Some(index) => *index,
-                    None => return Err(vec![format!("Label \"{}\" does not exist.", label)]),
-                },
+                label: labels.get(label)?,
             };
-            self.push_line(mnemonic, line, extension, operands);
-            Ok(())
+            Ok(operands)
         } else {
-            Err(vec!["Not a branch instruction.".into()])
+            Err(CompileErr::message("Invalid branch instruction.".into()))
         }
     }
     /// Compiles an instruction.
@@ -329,6 +434,7 @@ impl Program {
         mnemonic: &String,
         extension: MnemonicExtension,
         line: &String,
+        labels: &Labels,
     ) -> Result<(), Vec<String>> {
         // get instruction
         let instruction = self
@@ -337,19 +443,28 @@ impl Program {
             .expect("mnemonic should be valid.");
 
         // push compiled line onto instruction stack. Returns compile errors if any.
-        let operands = instruction.get_operands(&extension, line)?;
+        let operands = if mnemonic == "b" || mnemonic == "bl" {
+            // compile branch instructions separately.
+            self.compile_branch_instruction(&extension, line, &labels)?
+        } else {
+            instruction.get_operands(&extension, line)?
+        };
         self.push_line(mnemonic, line, extension, operands);
 
         Ok(())
     }
     /// Runs compiled assembly instuctions
     /// Returns Standard Output, or Standard Error message
-    pub fn run(&self, processor: &mut Processor) -> Result<String, String> {
+    pub fn run(
+        &self,
+        processor: &mut Processor,
+        shutdown: State<'_, GlobalKillSwitch>,
+    ) -> Result<String, String> {
         // Starting at the PC index.
-        while processor.PC < self.lines.len() {
+        while (processor.R[15] as usize) < self.lines.len() {
             // get the line to run
-            let line = &self.lines[processor.PC];
-            processor.PC += 1;
+            let line = &self.lines[processor.R[15] as usize];
+            processor.R[15] += 1;
 
             let instruction = self
                 .instructions
@@ -364,6 +479,16 @@ impl Program {
             }
             // run line, if a run-time error occurs stop program.
             instruction.execute(line.extension.s, &line.operands, processor)?;
+            // TODO: Maybe add a time delay after instruction execution.
+            thread::sleep(Duration::from_millis(self.delay as u64));
+
+            // shutdown program if Stop button was pressed.
+            let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
+            if *kill_switch {
+                *kill_switch = false;
+                drop(kill_switch);
+                break;
+            }
         }
         Ok("".into())
     }
@@ -373,15 +498,12 @@ impl Program {
 #[allow(non_snake_case)]
 /// Contains both CPU and Memory information.
 pub struct Processor {
-    pub R: [u32; 14],
+    /// SP = R[13], LR = R[14], PC = R[15]
+    pub R: [u32; 16],
     pub N: bool,
     pub Z: bool,
     pub C: bool,
     pub V: bool,
-    /// Link Register
-    pub LR: usize,
-    /// PC register, stores the index of the next intruction.
-    pub PC: usize,
     // size = 1kb = 1024 bytes
     // 1 byte = 8 bits
     /// RAM
@@ -389,14 +511,15 @@ pub struct Processor {
 }
 impl Processor {
     pub fn new() -> Self {
+        // full descending stack
+        let mut R = [0; 16];
+        R[13] = 1023;
         Processor {
-            R: [0; 14],
+            R,
             N: false,
             Z: false,
             C: false,
             V: false,
-            LR: 0,
-            PC: 0,
             memory: [0; 1024],
         }
     }

@@ -10,6 +10,7 @@ mod instructions;
 
 use fc::Folder;
 use std::sync::Mutex;
+use Process::GlobalKillSwitch;
 
 use arm7::Processor;
 use arm7::Program;
@@ -42,6 +43,7 @@ fn main() {
     tauri::Builder::default()
         .manage(GlobalProcessor(Mutex::new(Processor::new())))
         .manage(GlobalProgram(Mutex::new(Program::new())))
+        .manage(GlobalKillSwitch(Mutex::new(false)))
         .invoke_handler(tauri::generate_handler![
             greet,
             open_folder,
@@ -51,6 +53,7 @@ fn main() {
             Process::run,
             Process::display_CPU,
             Process::display_Memory,
+            Process::kill_process,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

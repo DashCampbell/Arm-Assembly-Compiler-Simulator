@@ -9,6 +9,7 @@ mod instructions;
 mod tests {
     use super::arm7::*;
     use crate::helpers as hp;
+    use regex::Regex;
 
     const MOV: MOV = MOV {};
 
@@ -30,6 +31,47 @@ mod tests {
             Err(mes) => println!("{:?}", mes),
             _ => panic!("Return Error: Not enough instructions."),
         }
+    }
+    #[test]
+    fn cmp() {
+        let cmp = CMP {};
+        let operands = Operands::Rd_immed { Rd: 0, immed: 0 };
+        let mut processor = Processor::new();
+        _ = cmp.execute(false, &operands, &mut processor);
+        assert_eq!(processor.N, false);
+        assert_eq!(processor.Z, true);
+        assert_eq!(processor.C, true);
+        assert_eq!(processor.V, false);
+
+        let operands = Operands::Rd_immed { Rd: 0, immed: 5 };
+        _ = cmp.execute(false, &operands, &mut processor);
+        assert_eq!(processor.N, true);
+        assert_eq!(processor.Z, false);
+        assert_eq!(processor.C, false);
+        assert_eq!(processor.V, false);
+
+        processor.R[0] = 10;
+        _ = cmp.execute(false, &operands, &mut processor);
+        assert_eq!(processor.N, false);
+        assert_eq!(processor.Z, false);
+        assert_eq!(processor.C, true);
+        assert_eq!(processor.V, false);
+
+        let cc = ConditionCode::GT;
+        assert_eq!(
+            cc.condition_test(processor.N, processor.Z, processor.C, processor.V),
+            true
+        );
+        let cc = ConditionCode::EQ;
+        assert_eq!(
+            cc.condition_test(processor.N, processor.Z, processor.C, processor.V),
+            false
+        );
+        let cc = ConditionCode::LT;
+        assert_eq!(
+            cc.condition_test(processor.N, processor.Z, processor.C, processor.V),
+            false
+        );
     }
 
     #[test]
@@ -109,7 +151,8 @@ mod tests {
                 MnemonicExtension {
                     cc: None,
                     s: true,
-                    w: false
+                    w: false,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -120,7 +163,8 @@ mod tests {
                 MnemonicExtension {
                     cc: Some(ConditionCode::VS),
                     s: false,
-                    w: false
+                    w: false,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -131,7 +175,8 @@ mod tests {
                 MnemonicExtension {
                     cc: None,
                     s: false,
-                    w: false
+                    w: false,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -151,6 +196,7 @@ mod tests {
                     cc: Some(ConditionCode::VS),
                     s: true,
                     w: false,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -162,6 +208,7 @@ mod tests {
                     cc: Some(ConditionCode::VS),
                     s: true,
                     w: true,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -173,6 +220,7 @@ mod tests {
                     cc: None,
                     s: false,
                     w: true,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
@@ -184,8 +232,19 @@ mod tests {
                     cc: None,
                     s: true,
                     w: false,
+                    it_status: ITStatus::OUT
                 }
             ))
         );
+    }
+    #[test]
+    fn find_labels() {
+        let global_regex = Regex::new(r"\s*.global\s+\w+\s*").unwrap();
+        let content = ".global label1\n.global label2\nb loop\n.    global label3  ";
+        let globals: Vec<&str> = global_regex
+            .find_iter(&content)
+            .map(|mat| mat.as_str())
+            .collect();
+        assert_eq!(globals.len(), 3);
     }
 }

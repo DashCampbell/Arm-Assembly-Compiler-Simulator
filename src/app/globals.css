@@ -6,6 +6,11 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+:root {
+  --header-height: 52px;
+  --code-tab-height: 36px;
+}
+
 html {
   @apply bg-primary w-screen h-screen;
   overflow: hidden;
@@ -82,11 +87,6 @@ html {
   @apply bg-slate-600;
 }
 
-.code-structure {
-  @apply px-2;
-  height: calc(40vh - 56px - 48px);
-}
-
 /* Styles for scrollbar */
 
 ::-webkit-scrollbar {
@@ -119,10 +119,14 @@ span svg {
   display: grid;
   grid-template-columns: 220px auto 460px;
 
-  position: absolute;
-  top: 52px;
+  position: fixed;
+  top: var(--header-height);
 
-  height: calc(100vh - 52px);
+  height: calc(100vh - var(--header-height));
+}
+
+#editor>div {
+  height: inherit;
 }
 
 /* Fixes weird scrolling issues in CodeMirror (https://stackoverflow.com/questions/72768501/why-codemirror-editor-does-not-scroll-horizontally-with-long-line) */
@@ -137,17 +141,12 @@ span svg {
   flex-grow: 1;
 }
 
-.code-contents {
-  height: calc(75vh - 56px - 36px);
-}
-
 #memory-grid {
   /* wtf */
   /* make sure the grid does not cross the bottom of the window, otherwise page glitches up */
-  height: calc(100vh - 56px - 44px - 16px - 4px);
+  height: calc(100% - 84px);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  background-color: #81898e;
   font-family: 'Courier New', Courier, monospace;
 }
 
@@ -164,9 +163,14 @@ span svg {
 
 
 
+.code-structure {
+  @apply px-2;
+  height: calc(40% - 48px);
+}
+
 #CPU {
   border-top: #505558 solid 2px;
-  height: 60vh;
+  height: 60%;
   padding-bottom: 0;
 }
 
@@ -191,8 +195,13 @@ span svg {
   background-color: #81898e;
 }
 
+
+.code-contents {
+  height: calc(75% - var(--code-tab-height));
+}
+
 #terminal {
-  height: 25vh;
+  height: calc(25%);
 }
 
 #terminal-output {

@@ -8,7 +8,7 @@ export default function MemoryArea() {
     const errorElement = useRef<HTMLParagraphElement | null>(null);
 
     const format = useRef<HTMLSelectElement | null>(null);
-    const [memory, setMemory] = useState<string[]>(new Array(1024).fill("0"));
+    const [memory, setMemory] = useState<{ memory: string[], SP: number }>({ memory: new Array(1024).fill("0"), SP: 0 });
 
     const { update_memory, setUpdateMemory } = useAssemblySource();
 
@@ -26,11 +26,11 @@ export default function MemoryArea() {
         if (key === "Enter") {
             if (location.current) {
                 // reset background color of previous selected memory
-                location.current.style.backgroundColor = "#81898e";
+                location.current.style.backgroundColor = "";
             }
             if (inputElement.current) {
                 const input_value = inputElement.current.value; // index of memory location
-                let index = memory.length - 1;
+                let index = memory.memory.length - 1;
                 // convert string to number
                 if (input_value.match(/^0b[01]+$/i)) {
                     index = parseInt(input_value.slice(2), 2);
@@ -42,9 +42,9 @@ export default function MemoryArea() {
                         errorElement.current.innerText = "Must enter a valid number. eg. 10, 0b1010, 0xa, etc.";
                     return;
                 }
-                index = memory.length - 1 - index;
+                index = memory.memory.length - 1 - index;
                 // memory bound checking
-                if (index < 0 || index >= memory.length) {
+                if (index < 0 || index >= memory.memory.length) {
                     // handles out of bounds error
                     if (errorElement.current)
                         errorElement.current.innerText = "Memory location is out of bounds.";
@@ -62,8 +62,8 @@ export default function MemoryArea() {
     useEffect(() => {
         if (update_memory) {
             if (format.current) {
-                invoke<string[]>('display_Memory', { num_format: format.current.value }).then(res => {
-                    setMemory(res.reverse());
+                invoke<[string[], number]>('display_Memory', { num_format: format.current.value }).then(res => {
+                    setMemory({ memory: res[0].reverse(), SP: res[1] });
                 });
             }
             setUpdateMemory(false);
@@ -85,6 +85,7 @@ export default function MemoryArea() {
             <p className="text-xs text-red-500 px-6 h-4" ref={errorElement}>
                 {/* Used to output error messages */}
             </p>
+            <p className=" px-3 text-center"><span className=" text-purple-500 font-bold">&#9632; </span><span className=" text-sm">Stack Pointer</span></p>
             <div id="memory-grid" className="overflow-scroll mt-2 pb-1 text-sm">
                 <span className="sticky top-0">addr + 3</span>
                 <span className="sticky top-0">addr + 2</span>
@@ -92,12 +93,13 @@ export default function MemoryArea() {
                 <span className="sticky top-0">addr + 0</span>
                 <span className="sticky top-0">address</span>
                 {/* full descending stack */}
-                {memory.map((byte, i) => (
+                {memory.memory.map((byte, i) => (
                     <>
-                        <span className="memory-byte" key={i}>{byte}</span>
-                        {(i + 1) % 4 == 0 ?
-                            <span>{decimalToHex(memory.length - i - 1, 8)}</span> :
-                            null
+                        <span className={"memory-byte" + ((memory.memory.length - i - 1) == memory.SP ? " bg-purple-500" : " bg-[#81898e]")} key={i}>{byte}</span>
+                        {
+                            (i + 1) % 4 == 0 ?
+                                <span>{decimalToHex(memory.memory.length - i - 1, 8)}</span> :
+                                null
                         }
                     </>
                 ))}

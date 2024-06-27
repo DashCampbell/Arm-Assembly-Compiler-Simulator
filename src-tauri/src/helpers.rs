@@ -14,10 +14,6 @@ fn mnemonic_extension() -> &'static str {
     r"s?(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)?(.w)?"
 }
 
-fn is_comment_or_whitespace(line: &str) -> bool {
-    Regex::new(r"^(\s*\/\/)|^(\s*$)").unwrap().is_match(line)
-}
-
 /// Regex expression for unsigned immediate values
 /// ex: #0x12, #12, #0b1100
 pub fn u_number() -> &'static str {

@@ -227,7 +227,7 @@ impl Instruction for B {
     ) -> Result<(), String> {
         match *operands {
             Operands::label { label } => {
-                chip.PC = label;
+                chip.R[15] = label as u32;
             }
             _ => return Err(error::invalid_operands()),
         }
@@ -256,8 +256,8 @@ impl Instruction for BL {
     ) -> Result<(), String> {
         match *operands {
             Operands::label { label } => {
-                chip.LR = chip.PC; // store PC register into Link register
-                chip.PC = label;
+                chip.R[14] = chip.R[15]; // store PC register into Link register
+                chip.R[15] = label as u32;
             }
             _ => return Err(error::invalid_operands()),
         }

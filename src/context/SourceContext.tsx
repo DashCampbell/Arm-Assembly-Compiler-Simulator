@@ -45,7 +45,13 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
     }, [opened]);
     // close opened file
     const delOpenedFile = useCallback((id: string) => {
-        updateOpenedFiles(prevOpen => prevOpen.filter(opened => opened.id !== id));
+        updateOpenedFiles(prevOpen => {
+            prevOpen = prevOpen.filter(opened => opened.id !== id);
+            if (prevOpen.length > 0 && id == selected)
+                setSelected(prevOpen[prevOpen.length - 1].id);
+            return prevOpen;
+        }
+        );
     }, [opened]);
     // set save state for opened files
     const setSaveStateOpenedFile = useCallback((id: string, state: boolean) => {
