@@ -6,15 +6,28 @@ import PreviewImage from "./PreviewImage"
 import CodeEditor from "./CodeEditor"
 import Tab from "./Tab"
 import Terminal from "./Terminal"
+import { useEffect, useState } from "react"
+import { readFile } from "../helpers/filesys"
 
 export default function CodeArea() {
     const { opened, selected } = useSource();
     const scrollRef = useHorizontalScroll();
+    const [all_content, setAllContent] = useState<string[] | null>(null);
+
+    const get_content = async ({ id }: { id: string }) => {
+        const file = getFileObject(id) as IFile;
+        return await readFile(file.path).catch((err) => err as string);
+    }
+    const get_all_content = async () => {
+        setAllContent(await Promise.all(opened.map(get_content)));
+    }
+    useEffect(() => {
+        get_all_content();
+    }, [opened]);
 
     const isImage = (name: string) => {
         return ['.png', '.gif', '.jpeg', 'jpg', '.bmp'].some(ext => name.lastIndexOf(ext) !== -1);
     };
-
     return (
         <div id="code-area" className="">
             {/** This area is for tab bar */}
@@ -31,14 +44,15 @@ export default function CodeArea() {
             {/** This area is for code content */}
 
             <div className="code-contents">
-                {opened.map(({ id }) => {
+                {opened.map(({ id }, index) => {
+                    // key must be id and not i, otherwise tabs close wrong editor.
                     const file = getFileObject(id) as IFile;
+
                     if (isImage(file.name)) {
                         return <PreviewImage path={file.path} active={id === selected} />
+                    } else if (all_content && all_content[index]) {
+                        return <CodeEditor key={id} id={id} content={all_content[index]} selected={id === selected} />
                     }
-                    // key must be id and not i, otherwise tabs close wrong editor.
-                    if (id === selected)
-                        return <CodeEditor key={id} id={id} />
                 })}
             </div>
             <Terminal />

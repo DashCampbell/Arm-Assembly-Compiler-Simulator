@@ -30,9 +30,9 @@ const SourceContext = createContext<ISourceContext>({
 });
 
 export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
-    const [selected, setSelected] = useState('');
-    const [opened, updateOpenedFiles] = useState<OpenedFile[]>([]);
-    const [directory, setDirectory] = useState('');
+    const [selected, setSelected] = useState('');   // file id
+    const [opened, updateOpenedFiles] = useState<OpenedFile[]>([]); // list of opened file id's
+    const [directory, setDirectory] = useState(''); // current directory
 
     const setSelect = (id: string) => {
         setSelected(id);
