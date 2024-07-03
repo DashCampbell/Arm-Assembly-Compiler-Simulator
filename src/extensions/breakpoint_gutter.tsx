@@ -78,7 +78,7 @@ export function breakpointGutter(breakpoints: Array<number> = []): Extension {
                 cursor: "pointer"
             },
             ".cm-breakpoint-gutter .cm-gutterElement:hover": {
-                backgroundColor: "#b6b6b6",
+                backgroundColor: "#696969",
             }
         })
     ];

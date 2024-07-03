@@ -4,7 +4,8 @@ import { createContext, useContext, useState, useCallback } from "react"
 
 interface OpenedFile {
     id: string;
-    bSave: boolean; // True - Display save icon, False - File is saved and not changed.
+    bSave: boolean; // True - Display save icon, False - File is saved and not changed
+    breakpoints: number[];
 }
 interface ISourceContext {
     selected: string;   // file id
@@ -15,6 +16,7 @@ interface ISourceContext {
     directory: string;  // Parent folder
     setDirectory: (dir: string) => void;
     setSaveStateOpenedFile: (id: string, state: boolean) => void;
+    updateBreakpoints: (id: string, breakpoints: number[]) => void;
 }
 
 const SourceContext = createContext<ISourceContext>({
@@ -27,6 +29,7 @@ const SourceContext = createContext<ISourceContext>({
     directory: '',
     setDirectory: (dir) => { },
     setSaveStateOpenedFile: (id, state) => { },
+    updateBreakpoints: (id, breakpoints) => { },
 });
 
 export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
@@ -38,10 +41,8 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
         setSelected(id);
     }
     const addOpenedFile = useCallback((id: string) => {
-        // if (opened.includes(id)) return;    // do nothing if file already opened
-        // updateOpenedFiles(prevOpen => ([...prevOpen, id]));
         if (opened.some(o => o.id === id)) return;    // do nothing if file already opened
-        updateOpenedFiles(prevOpen => ([...prevOpen, { id, bSave: false }]));
+        updateOpenedFiles(prevOpen => ([...prevOpen, { id, bSave: false, breakpoints: [] }]));
     }, [opened]);
     // close opened file
     const delOpenedFile = useCallback((id: string) => {
@@ -62,6 +63,13 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
             return newOpen;
         });
     }, [opened]);
+    const updateBreakpoints = useCallback((id: string, breakpoints: number[]) => {
+        updateOpenedFiles(prevOpen => {
+            let newOpen = [...prevOpen];    // make copy of old state
+            newOpen.find(file => file.id === id)!.breakpoints = breakpoints;
+            return newOpen;
+        });
+    }, [opened]);
 
     return (
         <SourceContext.Provider value={{
@@ -70,6 +78,7 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
             addOpenedFile, delOpenedFile,
             directory, setDirectory,
             setSaveStateOpenedFile,
+            updateBreakpoints
         }}>
             {children}
         </SourceContext.Provider >
@@ -78,7 +87,4 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
 
 export const useSource = (): ISourceContext => {
     return useContext(SourceContext);
-    // const { selected, setSelect, opened, addOpenedFile, delOpenedFile, setSaveStateOpenedFile } = useContext(SourceContext)
-
-    // return { selected, setSelect, opened, addOpenedFile, delOpenedFile, setSaveStateOpenedFile }
 }

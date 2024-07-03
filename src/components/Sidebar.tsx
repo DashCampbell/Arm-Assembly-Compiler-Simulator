@@ -16,8 +16,6 @@ export default function Sidebar() {
 
     const loadDirectory = async () => {
         const selected = await open({ directory: true });
-        console.log("Open Explorer")
-
         if (!selected) return;
 
         readDirectory(selected + "/").then(([files, directory]: [IFile[], string]) => {
