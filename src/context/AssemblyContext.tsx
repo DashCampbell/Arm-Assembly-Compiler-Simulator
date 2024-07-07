@@ -108,7 +108,7 @@ const AssemblyContext = createContext<IAssemblyContext>({
 export const AssemblySourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
     const [std_out, setSTDOut] = useState<I_std_out[]>([]);
     const [std_in_active, set_std_in_active] = useState(false);
-    const [debug_status, set_debug_status] = useState(DebugStatus.CONTINUE);
+    const [debug_status, set_debug_status] = useState(DebugStatus.END);
     const [cpu, setCPU] = useState<CPU>({
         R: new Array(16).fill("0"),
         N: false,

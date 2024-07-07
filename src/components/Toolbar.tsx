@@ -64,7 +64,7 @@ export default function Toolbar() {
             });
     };
     // executes one assembly instruction.
-    const debug_step = async (): Promise<boolean> => {
+    const debug_step = useCallback(async (): Promise<boolean> => {
         let stop = false;
         await invoke<[string, number, string, DebugStatus]>('debug_run').then(([file_name, line_number, std_output, status]) => {
             push_std_out("text", std_output);
@@ -102,14 +102,14 @@ export default function Toolbar() {
             });
         });
         return Promise.resolve(stop);
-    }
+    }, [cpu, memory]);
     // continues executing assembly instructions until the last instruction or a breakpoint is reached.
-    const debug_continue = useCallback(async () => {
+    const debug_continue = async () => {
         let stop = false;
         while (!stop) {
             stop = await debug_step();
         }
-    }, []);
+    };
     const handleDebug = () => {
         if (!toolbar_btn.state.debug)
             return;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { getFileObject } from "../stores/files";
 import { writeFile } from "../helpers/filesys";
 
@@ -24,7 +24,7 @@ interface Props {
 // npm i "missing extension"
 
 export default function CodeEditor({ id, selected, content, breakpoints }: Props) {
-    const { setSaveStateOpenedFile, updateBreakpoints, opened } = useSource();
+    const { setSaveStateOpenedFile, updateBreakpoints } = useSource();
     const { highlight_line, debug_status } = useAssemblySource();
     const editor = useRef<HTMLDivElement | null>(null);
     const extensions = useMemo(() => [
@@ -34,7 +34,7 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
         hightlight((id === highlight_line.id) ? highlight_line.number : 0),
     ], [breakpoints, highlight_line]);
 
-    const { view, setContainer } = useCodeMirror({
+    const { state, view, setContainer } = useCodeMirror({
         container: editor.current,
         height: "100%",
         theme: monokai,
@@ -42,6 +42,13 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
         extensions,
         indentWithTab: true,
         editable: debug_status === DebugStatus.RUNNING || debug_status === DebugStatus.END,
+        onChange(_, viewUpdate) {
+            // if file content is altered
+            if (viewUpdate.docChanged) {
+                // Display "Not saved" icon in tab bar
+                setSaveStateOpenedFile(id, true);
+            }
+        },
     });
     // get file metadata by id from /stores/file.ts
     // save the content when pressing Ctrl + S
@@ -58,14 +65,9 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
             // Save file, reset tab icon
             onSave();
             setSaveStateOpenedFile(id, false);
-        } else if (!e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
-            // File is changed
-            // Display "Not saved" icon in tab bar
-            if (!opened.find(file => file.id === id)!.bSave)
-                setSaveStateOpenedFile(id, true);
         }
     }
-    const mouseUp = (e: any) => {
+    const mouseUp = () => {
         if (view)
             updateBreakpoints(id, getBreakpoints(view.state));
     }
@@ -88,8 +90,8 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
 
     return (
         <main className={(selected ? '' : 'hidden') + " w-full h-full"}>
-            <div ref={editor} className="root-wrapper h-full " tabIndex={-1} onKeyDown={(ev) => { keyDown(ev) }} onMouseUp={(e) => { mouseUp(e) }}>
+            <div ref={editor} className="root-wrapper h-full " tabIndex={-1} onKeyDown={(ev) => { keyDown(ev) }} onMouseUp={mouseUp}>
             </div>
-        </main>
+        </main >
     );
 }
