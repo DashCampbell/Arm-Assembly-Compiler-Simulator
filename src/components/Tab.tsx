@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function Tab({ file, active, id, save }: Props) {
-    const { opened, setSelect, delOpenedFile } = useSource();
+    const { setSelect, delOpenedFile } = useSource();
 
     const onSelectItem = (id: string) => {
         setSelect(id);

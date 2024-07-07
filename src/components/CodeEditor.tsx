@@ -11,7 +11,7 @@ import { monokai } from "@uiw/codemirror-theme-monokai";
 import { useSource } from "@/context/SourceContext";
 import { breakpointGutter, getBreakpoints, noFold } from "@/extensions/breakpoint_gutter";
 import { hightlight } from "@/extensions/highlight_line";
-import { useAssemblySource } from "@/context/AssemblyContext";
+import { DebugStatus, useAssemblySource } from "@/context/AssemblyContext";
 
 interface Props {
     id: string;
@@ -25,7 +25,7 @@ interface Props {
 
 export default function CodeEditor({ id, selected, content, breakpoints }: Props) {
     const { setSaveStateOpenedFile, updateBreakpoints, opened } = useSource();
-    const { highlight_line } = useAssemblySource();
+    const { highlight_line, debug_status } = useAssemblySource();
     const editor = useRef<HTMLDivElement | null>(null);
     const extensions = useMemo(() => [
         noFold(),
@@ -41,6 +41,7 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
         value: content,
         extensions,
         indentWithTab: true,
+        editable: debug_status === DebugStatus.RUNNING || debug_status === DebugStatus.END,
     });
     // get file metadata by id from /stores/file.ts
     // save the content when pressing Ctrl + S

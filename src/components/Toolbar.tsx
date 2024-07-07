@@ -7,7 +7,7 @@ import { useCallback, useMemo } from "react";
 import StopBtn from "@/components/StopBtn"
 
 export default function Toolbar() {
-    const { directory, opened } = useSource();
+    const { directory, opened, setSelect, addOpenedFile } = useSource();
     const {
         cpu,
         memory,
@@ -67,15 +67,20 @@ export default function Toolbar() {
     const debug_step = async (): Promise<boolean> => {
         let stop = false;
         await invoke<[string, number, string, DebugStatus]>('debug_run').then(([file_name, line_number, std_output, status]) => {
-            // set the line to highlight
-            let file = getFileFromName(file_name);
-            highlight_line.setLine(file?.id ?? '', line_number);
             push_std_out("text", std_output);
-
+            let file = getFileFromName(file_name);
+            if (file) {
+                // set the line to highlight
+                highlight_line.setLine(file.id, line_number);
+                // open file if it is not already opened
+                addOpenedFile(file.id);
+                setSelect(file.id);
+            }
             if (status == DebugStatus.END || status == DebugStatus.BREAKPOINT) {
                 set_debug_status(status);
                 stop = true;
                 if (status == DebugStatus.END) {
+                    highlight_line.setLine('', 0);  // unhighlight line if program completed
                     toolbar_btn.setInactiveMode();
                     push_std_out("run", "Finished Debugging");
                 } else if (status == DebugStatus.BREAKPOINT) {

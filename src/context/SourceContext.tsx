@@ -41,8 +41,11 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
         setSelected(id);
     }
     const addOpenedFile = useCallback((id: string) => {
-        if (opened.some(o => o.id === id)) return;    // do nothing if file already opened
-        updateOpenedFiles(prevOpen => ([...prevOpen, { id, bSave: false, breakpoints: [] }]));
+        updateOpenedFiles(prevOpen => {
+            if (prevOpen.some(file => file.id === id))
+                return prevOpen;    // do nothing if file already opened
+            return [...prevOpen, { id, bSave: false, breakpoints: [] }]
+        });
     }, [opened]);
     // close opened file
     const delOpenedFile = useCallback((id: string) => {

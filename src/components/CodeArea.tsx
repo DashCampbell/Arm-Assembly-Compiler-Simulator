@@ -16,7 +16,8 @@ export default function CodeArea() {
 
     const get_content = async ({ id }: { id: string }) => {
         const file = getFileObject(id) as IFile;
-        return await readFile(file.path).catch((err) => err as string);
+        const content = await readFile(file.path).catch((err) => err as string);
+        return content.length < 1 ? " " : content;
     }
     const get_all_content = async () => {
         setAllContent(await Promise.all(opened.map(get_content)));
