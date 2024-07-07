@@ -8,13 +8,15 @@ interface I_std_out {
 }
 interface Itoolbar_btn {
     state: {
+        run: boolean,
+        debug: boolean
         continue: boolean,
         step: boolean,
         stop: boolean
     };
-    setContinue: (update: boolean) => void;
-    setStep: (step: boolean) => void;
-    setStop: (stop: boolean) => void;
+    setRunningMode: () => void;
+    setBreakpointMode: () => void;
+    setInactiveMode: () => void;
 }
 interface Ihighlight_line {
     id: string,
@@ -67,13 +69,15 @@ const AssemblyContext = createContext<IAssemblyContext>({
     set_std_in_active: (update) => { },
     toolbar_btn: {
         state: {
+            run: true,
+            debug: true,
             continue: false,
             step: false,
             stop: false
         },
-        setContinue: (update) => { },
-        setStep: (step) => { },
-        setStop: (stop) => { },
+        setRunningMode() { },
+        setBreakpointMode() { },
+        setInactiveMode() { },
     },
     debug_status: DebugStatus.END,
     set_debug_status: (status) => { },
@@ -140,13 +144,15 @@ export const AssemblySourceProvider = ({ children }: { children: JSX.Element | J
 
     const [toolbar_btn, setToolbarBtn] = useState<Itoolbar_btn>({
         state: {
+            run: true,
+            debug: true,
             continue: false,
             step: false,
             stop: false
         },
-        setContinue: (update) => { setToolbarBtn({ ...toolbar_btn, state: { ...toolbar_btn.state, continue: update } }); },
-        setStep: (step) => { setToolbarBtn({ ...toolbar_btn, state: { ...toolbar_btn.state, step } }); },
-        setStop: (stop) => { setToolbarBtn({ ...toolbar_btn, state: { ...toolbar_btn.state, stop } }); },
+        setRunningMode: () => { setToolbarBtn({ ...toolbar_btn, state: { run: false, debug: false, continue: false, step: false, stop: true } }) },
+        setBreakpointMode: () => { setToolbarBtn({ ...toolbar_btn, state: { run: false, debug: false, continue: true, step: true, stop: true } }) },
+        setInactiveMode: () => { setToolbarBtn({ ...toolbar_btn, state: { run: true, debug: true, continue: false, step: false, stop: false } }) },
     });
 
     const clear_std_out = useCallback(() => {

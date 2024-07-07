@@ -519,7 +519,7 @@ impl Program {
         Ok("".into())
     }
     /// Debug compiled assembly instuctions
-    /// Returns Standard Output, or Standard Error message
+    /// /// If Ok, returns (current file name, current line number, and standard output)
     pub fn debug_run(
         &self,
         processor: &mut Processor,

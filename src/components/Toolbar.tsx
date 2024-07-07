@@ -18,7 +18,12 @@ export default function Toolbar() {
         set_debug_status,
         highlight_line
     } = useAssemblySource();
+    const activeBtn = (active: boolean): string => {
+        return active ? "text-green-400" : "text-slate-400";
+    }
     const handleRun = () => {
+        if (!toolbar_btn.state.run)
+            return;
         // Run Assembly Code
         clear_std_out();
 
@@ -26,12 +31,12 @@ export default function Toolbar() {
         push_std_out("compile", "Compiling...");
 
         invoke('compile', { dir_path: directory })
-            .then(res => {
+            .then(std_out => {
                 push_std_out("compile", "Compiled Successfully");
 
                 // Run assembly code, activate Stop btn.
                 push_std_out("run", "Running...");
-                toolbar_btn.setStop(true);
+                toolbar_btn.setRunningMode();
 
                 invoke<string>('run')
                     .then((res: string) => {
@@ -41,14 +46,14 @@ export default function Toolbar() {
                     .catch(err => push_std_out("error", err))
                     .finally(() => {
                         // Update Terminal, CPU, and Memory data
-                        invoke<CPU>('display_CPU', { num_format: cpu.format }).then(res => {
-                            cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
+                        invoke<CPU>('display_CPU', { num_format: cpu.format }).then(newCPU => {
+                            cpu.update_cpu(newCPU.R, newCPU.N, newCPU.Z, newCPU.C, newCPU.V);
                         });
-                        invoke<[string[], number]>('display_Memory', { num_format: memory.format }).then(res => {
-                            memory.update_memory(res[0].reverse(), res[1]);
+                        invoke<[string[], number]>('display_Memory', { num_format: memory.format }).then(([ram, sp]) => {
+                            memory.update_memory(ram.reverse(), sp);
                         });
                         // Deactivate Toolbar Buttons
-                        toolbar_btn.setStop(false);
+                        toolbar_btn.setInactiveMode();
                     });
             }
             ).catch(err => {
@@ -58,36 +63,51 @@ export default function Toolbar() {
                 push_std_out("red", "Compiling failed...");
             });
     };
+    // executes one assembly instruction.
+    const debug_step = async (): Promise<boolean> => {
+        let stop = false;
+        await invoke<[string, number, string, DebugStatus]>('debug_run').then(([file_name, line_number, std_output, status]) => {
+            // set the line to highlight
+            let file = getFileFromName(file_name);
+            highlight_line.setLine(file?.id ?? '', line_number);
+            push_std_out("text", std_output);
+
+            if (status == DebugStatus.END || status == DebugStatus.BREAKPOINT) {
+                set_debug_status(status);
+                stop = true;
+                if (status == DebugStatus.END) {
+                    toolbar_btn.setInactiveMode();
+                    push_std_out("run", "Finished Debugging");
+                } else if (status == DebugStatus.BREAKPOINT) {
+                    toolbar_btn.setBreakpointMode();
+                }
+            }
+        }).catch(err => {
+            push_std_out("error", err);
+            set_debug_status(DebugStatus.END);
+            stop = true;
+        }).finally(async () => {
+            // Update Terminal, CPU, and Memory data
+            // wait until frontend updates, before running next assembly instruction.
+            await invoke<CPU>('display_CPU', { num_format: cpu.format }).then(res => {
+                cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
+            });
+            await invoke<[string[], number]>('display_Memory', { num_format: memory.format }).then(([ram, sp]) => {
+                memory.update_memory(ram.reverse(), sp);
+            });
+        });
+        return Promise.resolve(stop);
+    }
+    // continues executing assembly instructions until the last instruction or a breakpoint is reached.
     const debug_continue = useCallback(async () => {
         let stop = false;
         while (!stop) {
-            await invoke<[string, number, string, DebugStatus]>('debug_run').then(([file_name, line_number, std_output, status]) => {
-                push_std_out("text", std_output);
-
-                if (status == DebugStatus.END || status == DebugStatus.BREAKPOINT) {
-                    set_debug_status(status);
-                    stop = true;
-                }
-                // set the line to highlight
-                let file = getFileFromName(file_name);
-                highlight_line.setLine(file?.id ?? '', line_number);
-            }).catch(err => {
-                push_std_out("error", err);
-                set_debug_status(DebugStatus.END);
-                stop = true;
-            }).finally(async () => {
-                // Update Terminal, CPU, and Memory data
-                // wait until frontend updates, before running next assembly instruction.
-                await invoke<CPU>('display_CPU', { num_format: cpu.format }).then(res => {
-                    cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
-                });
-                await invoke<[string[], number]>('display_Memory', { num_format: memory.format }).then(([ram, sp]) => {
-                    memory.update_memory(ram.reverse(), sp);
-                });
-            });
+            stop = await debug_step();
         }
     }, []);
     const handleDebug = () => {
+        if (!toolbar_btn.state.debug)
+            return;
         // get breakpoints
         const breakpoint_map: { [name: string]: number[] } = {};
         opened.forEach(({ id, breakpoints }) => {
@@ -103,14 +123,10 @@ export default function Toolbar() {
                 // Run assembly code, activate Stop btn.
                 push_std_out("compile", "Compiled Successfully");
                 push_std_out("run", "Debugging...");
-                toolbar_btn.setStop(true);
+                toolbar_btn.setRunningMode();
                 set_debug_status(DebugStatus.CONTINUE);
 
-                debug_continue().finally(() => {
-                    push_std_out("run", "Finished Debugging");
-                    // Deactivate Toolbar Buttons
-                    toolbar_btn.setStop(false);
-                });
+                debug_continue();
             }).catch(err => {
                 err.forEach((mess: string) => {
                     push_std_out("error", mess);
@@ -118,12 +134,24 @@ export default function Toolbar() {
                 push_std_out("red", "Compiling failed...");
             });
     }
+    const handleContinue = async () => {
+        if (toolbar_btn.state.continue) {
+            set_debug_status(DebugStatus.CONTINUE);
+            await debug_continue();
+        }
+    }
+    const handleStep = async () => {
+        if (toolbar_btn.state.step) {
+            set_debug_status(DebugStatus.STEP);
+            await debug_step();
+        }
+    }
     return (
         <div id="toolbar" className="  text-gray-400 py-1 px-2">
-            <span>Debug: <i title="debug" onClick={handleDebug} className=" text-green-400 hover:bg-gray-600 cursor-pointer p-1"><Icon icon="codicon:debug-alt" /></i></span>
-            <span title="continue"><i className="  text-slate-400 hover:bg-gray-600 cursor-pointer p-1"><Icon icon="carbon:continue-filled" /></i></span>
-            <span title="step"><i className=" text-slate-400 hover:bg-gray-600 cursor-pointer p-1"><Icon icon="clarity:step-forward-solid" /></i></span>
-            <span>Run: <i title="run" onClick={handleRun} className=" text-green-400 hover:bg-gray-600 cursor-pointer p-1"><Icon icon="codicon:run-all" /></i></span>
+            <span>Debug: <i title="debug" onClick={handleDebug} className={activeBtn(toolbar_btn.state.debug) + " hover:bg-gray-600 cursor-pointer p-1"}><Icon icon="codicon:debug-alt" /></i></span>
+            <span title="continue"><i onClick={handleContinue} className={activeBtn(toolbar_btn.state.continue) + " hover:bg-gray-600 cursor-pointer p-1"}><Icon icon="carbon:continue-filled" /></i></span>
+            <span title="step"><i onClick={handleStep} className={activeBtn(toolbar_btn.state.step) + " hover:bg-gray-600 cursor-pointer p-1"}><Icon icon="clarity:step-forward-solid" /></i></span>
+            <span>Run: <i title="run" onClick={handleRun} className={activeBtn(toolbar_btn.state.run) + " hover:bg-gray-600 cursor-pointer p-1"}><Icon icon="codicon:run-all" /></i></span>
             <StopBtn active={toolbar_btn.state.stop} />
         </div>
     )
