@@ -1,9 +1,9 @@
 // For Compiling, Running, and Debugging assembly code.
-use crate::arm7::{ConditionCode, Labels, Processor, Program};
+use crate::arm7::{ConditionCode, DebugStatus, Labels, Processor, Program};
 use crate::error::CompileErr;
 use compile::{Config, CPU};
 use regex::Regex;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use tauri::State;
 
@@ -21,6 +21,7 @@ pub async fn compile(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
     dir_path: &str,
+    breakpoint_map: Option<HashMap<&str, Vec<usize>>>,
 ) -> Result<(), Vec<String>> {
     // Load file contents, and get time delay
     let config = Config::new(dir_path)?;
@@ -58,8 +59,13 @@ pub async fn compile(
 
         // Parse instructions
         for (line_number, line) in file_content.lines().enumerate() {
-            errors.update_line_number(line_number);
+            let line_number = line_number + 1; // offset line number by one
             let line = compile::preprocess_line(line).to_lowercase();
+            let is_breakpoint = breakpoint_map.as_ref().map_or(false, |map| {
+                map.get(file_name.as_str())
+                    .map_or(false, |list| list.contains(&line_number))
+            });
+            errors.update_line_number(line_number);
 
             // skip if white space or label or directive
             if line.is_empty() || line.ends_with(':') || line.starts_with('.') {
@@ -74,8 +80,15 @@ pub async fn compile(
                 // Valid Mnemonic.
                 extension.it_status = errors.get_it_status(&mut it_block, extension.cc);
                 // return any compile time errors for this instruction.
-                if let Err(err) = program.compile_instruction(&mnemonic, extension, &line, &labels)
-                {
+                if let Err(err) = program.compile_instruction(
+                    &mnemonic,
+                    file_name,
+                    line_number,
+                    extension,
+                    is_breakpoint,
+                    &line,
+                    &labels,
+                ) {
                     errors.extend(err);
                 }
             } else {
@@ -112,6 +125,29 @@ pub async fn run(
 
     program.run(&mut processor, kill_switch)
 }
+
+#[tauri::command(rename_all = "snake_case")]
+/// Returns Standard Output or Standard Error
+/// If Ok, returns (current file name, current line number, and standard output)
+pub async fn debug_run(
+    processor: State<'_, GlobalProcessor>,
+    program: State<'_, GlobalProgram>,
+    kill_switch: State<'_, GlobalKillSwitch>,
+) -> Result<(String, usize, String, DebugStatus), String> {
+    // program is compiled and now immutable
+    let program = program
+        .0
+        .lock()
+        .expect("Failed to get Program in run function.");
+
+    // get processor
+    let mut processor = processor
+        .0
+        .lock()
+        .expect("Failed to get processor in run function.");
+
+    program.debug_run(&mut processor, kill_switch)
+}
 #[tauri::command]
 /// Stops the current assembly code from running.
 pub async fn kill_process(kill_switch: State<'_, GlobalKillSwitch>) -> Result<(), ()> {
@@ -134,7 +170,6 @@ pub async fn display_CPU(
         .0
         .lock()
         .expect("Failed to get processor in display_CPU function.");
-
     // format based on chosen number system.
     let formatter = match num_format.as_str() {
         "signed" => |r: u32| format!("{}", r as i32),

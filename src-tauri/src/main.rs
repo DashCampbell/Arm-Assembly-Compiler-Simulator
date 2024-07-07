@@ -51,6 +51,7 @@ fn main() {
             write_file,
             Process::compile,
             Process::run,
+            Process::debug_run,
             Process::display_CPU,
             Process::display_Memory,
             Process::kill_process,

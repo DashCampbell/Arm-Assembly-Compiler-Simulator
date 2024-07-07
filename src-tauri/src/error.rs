@@ -33,7 +33,7 @@ impl CompileErr {
     /// Updates the line number for error messages
     pub fn update_line_number(&mut self, line_number: usize) {
         // line_number from enumerator, so starts at one.
-        self.line_number = line_number + 1;
+        self.line_number = line_number;
     }
     pub fn update_current_file(&mut self, file_name: String) {
         self.current_file = file_name;

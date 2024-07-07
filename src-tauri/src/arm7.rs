@@ -25,6 +25,12 @@ pub enum ITStatus {
     IN,
     LAST,
 }
+#[derive(Debug, PartialEq, serde::Serialize)]
+pub enum DebugStatus {
+    END, // no more instructions to run
+    CONTINUE,
+    BREAKPOINT,
+}
 
 /// Contains all labels, and handles all label logic
 #[derive(Debug)]
@@ -285,24 +291,30 @@ impl MnemonicExtension {
 }
 /// Contains an instruction line and metadata
 struct Line {
-    /// Used for error messages
-    line: String,
     mnemonic: String,
+    /// Used for error messages
+    file_name: String,
+    line_number: usize,
     extension: MnemonicExtension,
-    /// Used to run line.
+    is_breakpoint: bool,
+    /// Used to run assembly code.
     operands: Operands,
 }
 impl Line {
     fn new(
         mnemonic: String,
-        line: String,
+        file_name: String,
+        line_number: usize,
         extension: MnemonicExtension,
+        is_breakpoint: bool,
         operands: Operands,
     ) -> Self {
         Line {
             mnemonic,
-            line,
+            file_name,
+            line_number,
             extension,
+            is_breakpoint,
             operands,
         }
     }
@@ -340,14 +352,18 @@ impl Program {
     fn push_line(
         &mut self,
         mnemonic: &String,
-        line: &String,
+        file_name: &String,
+        line_number: usize,
         extension: MnemonicExtension,
+        is_breakpoint: bool,
         operands: Operands,
     ) {
         self.lines.push(Line::new(
             mnemonic.clone(),
-            line.clone(),
+            file_name.clone(),
+            line_number,
             extension,
+            is_breakpoint,
             operands,
         ));
     }
@@ -432,7 +448,10 @@ impl Program {
     pub fn compile_instruction(
         &mut self,
         mnemonic: &String,
+        file_name: &String,
+        line_number: usize,
         extension: MnemonicExtension,
+        is_breakpoint: bool,
         line: &String,
         labels: &Labels,
     ) -> Result<(), Vec<String>> {
@@ -449,7 +468,14 @@ impl Program {
         } else {
             instruction.get_operands(&extension, line)?
         };
-        self.push_line(mnemonic, line, extension, operands);
+        self.push_line(
+            mnemonic,
+            file_name,
+            line_number,
+            extension,
+            is_breakpoint,
+            operands,
+        );
 
         Ok(())
     }
@@ -480,7 +506,7 @@ impl Program {
             // run line, if a run-time error occurs stop program.
             instruction.execute(line.extension.s, &line.operands, processor)?;
             // TODO: Maybe add a time delay after instruction execution.
-            thread::sleep(Duration::from_millis(self.delay as u64));
+            // thread::sleep(Duration::from_millis(self.delay as u64));
 
             // shutdown program if Stop button was pressed.
             let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
@@ -491,6 +517,50 @@ impl Program {
             }
         }
         Ok("".into())
+    }
+    /// Debug compiled assembly instuctions
+    /// Returns Standard Output, or Standard Error message
+    pub fn debug_run(
+        &self,
+        processor: &mut Processor,
+        shutdown: State<'_, GlobalKillSwitch>,
+    ) -> Result<(String, usize, String, DebugStatus), String> {
+        // time delay for instruction
+        thread::sleep(Duration::from_millis(self.delay as u64));
+        // Terminate process if stop button was pressed, or end of file was reached.
+        let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
+        if (processor.R[15] as usize) >= self.lines.len() || *kill_switch {
+            *kill_switch = false;
+            return Ok(("".into(), 0, "".into(), DebugStatus::END));
+        }
+        // get the line to run
+        let line = &self.lines[processor.R[15] as usize];
+        let debug_status = if line.is_breakpoint {
+            DebugStatus::BREAKPOINT
+        } else {
+            DebugStatus::CONTINUE
+        };
+        processor.R[15] += 1;
+        let status = (
+            line.file_name.clone(),
+            line.line_number,
+            "".to_string(),
+            debug_status,
+        );
+        let instruction = self
+            .instructions
+            .get(&line.mnemonic)
+            .expect("run-time error, mnemonic should be valid!");
+        // Compute condition code first.
+        if let Some(cc) = line.extension.cc {
+            // skip instruction if condition code not passed
+            if !cc.condition_test(processor.N, processor.Z, processor.C, processor.V) {
+                return Ok(status);
+            }
+        }
+        // run line, if a run-time error occurs stop program.
+        instruction.execute(line.extension.s, &line.operands, processor)?;
+        return Ok(status);
     }
 }
 

@@ -25,3 +25,10 @@ export const saveFileObject = (id: string, file: IFile): void => {
 export const getFileObject = (id: string): IFile => {
     return entries[id];
 }
+export const getFileFromName = (name: string): IFile | undefined => {
+    for (const key in entries) {
+        if (entries[key].name === name)
+            return entries[key];
+    }
+    return undefined;
+}

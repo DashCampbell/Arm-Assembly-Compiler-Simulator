@@ -8,9 +8,8 @@ export default function MemoryArea() {
     const errorElement = useRef<HTMLParagraphElement | null>(null);
 
     const format = useRef<HTMLSelectElement | null>(null);
-    const [memory, setMemory] = useState<{ memory: string[], SP: number }>({ memory: new Array(1024).fill("0"), SP: 0 });
+    const { memory } = useAssemblySource();
 
-    const { update_memory, setUpdateMemory } = useAssemblySource();
 
     // https://stackoverflow.com/questions/57803/how-to-convert-decimal-to-hexadecimal-in-javascript
     const decimalToHex = (d: number, padding: number) => {
@@ -58,24 +57,19 @@ export default function MemoryArea() {
             }
         }
     };
+    const updateMemory = () => {
+        invoke<[string[], number]>('display_Memory', { num_format: format?.current?.value }).then(([ram, sp]) => {
+            memory.set_format(format?.current?.value ?? '');
+            memory.update_memory(ram.reverse(), sp);
+        });
 
-    useEffect(() => {
-        if (update_memory) {
-            if (format.current) {
-                invoke<[string[], number]>('display_Memory', { num_format: format.current.value }).then(res => {
-                    setMemory({ memory: res[0].reverse(), SP: res[1] });
-                });
-            }
-            setUpdateMemory(false);
-        }
-    }, [update_memory]);
-
+    }
     return (
         <div id="memory-area" className="bg-darken text-white">
             <div className="px-2 pt-3">
                 <span className=" mr-1">Go to: </span>
                 <input ref={inputElement} type="text" className="text-black rounded-md p-1" placeholder="Memory Address" onKeyDown={(e) => handleInput(e.key)} />
-                <select ref={format} onChange={() => setUpdateMemory(true)} defaultValue={"unsigned"} title="Display Format of bytes" className="text-zinc-800 ml-4 p-1 rounded-sm">
+                <select ref={format} onChange={updateMemory} defaultValue={"unsigned"} title="Display Format of bytes" className="text-zinc-800 ml-4 p-1 rounded-sm">
                     <option value="unsigned">Unsigned Integer</option>
                     <option value="signed">Signed Integer</option>
                     <option value="binary">Binary</option>

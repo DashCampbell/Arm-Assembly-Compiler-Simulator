@@ -11,6 +11,7 @@ import { monokai } from "@uiw/codemirror-theme-monokai";
 import { useSource } from "@/context/SourceContext";
 import { breakpointGutter, getBreakpoints, noFold } from "@/extensions/breakpoint_gutter";
 import { hightlight } from "@/extensions/highlight_line";
+import { useAssemblySource } from "@/context/AssemblyContext";
 
 interface Props {
     id: string;
@@ -24,13 +25,13 @@ interface Props {
 
 export default function CodeEditor({ id, selected, content, breakpoints }: Props) {
     const { setSaveStateOpenedFile, updateBreakpoints, opened } = useSource();
-    const highlight_line = 29;
+    const { highlight_line } = useAssemblySource();
     const editor = useRef<HTMLDivElement | null>(null);
     const extensions = useMemo(() => [
         noFold(),
         basicSetup,
         breakpointGutter(breakpoints ?? []),
-        hightlight(highlight_line ?? 0),
+        hightlight((id === highlight_line.id) ? highlight_line.number : 0),
     ], [breakpoints, highlight_line]);
 
     const { view, setContainer } = useCodeMirror({
@@ -75,11 +76,11 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
     }, [editor.current]);
     // scroll to highlighted line, if there is one.
     useEffect(() => {
-        if (highlight_line && view && editor.current) {
+        if ((highlight_line.id === id) && view && editor.current) {
             const lines = editor.current.getElementsByClassName('cm-line');
-            if (highlight_line > 0 && highlight_line <= lines.length) {
+            if (highlight_line.number > 0 && highlight_line.number <= lines.length) {
                 // highlight_line used 1 based index.
-                lines[highlight_line - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                lines[highlight_line.number - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
     }, [view, selected, highlight_line]);
