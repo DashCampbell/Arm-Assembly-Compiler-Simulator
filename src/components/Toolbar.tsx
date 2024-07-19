@@ -43,7 +43,10 @@ export default function Toolbar() {
                         push_std_out("text", res);
                         push_std_out("run", "Finished Running");
                     })
-                    .catch(err => push_std_out("error", err))
+                    .catch(err => {
+                        push_std_out("red", "Runtime Error:");
+                        push_std_out("error", err);
+                    })
                     .finally(() => {
                         // Update Terminal, CPU, and Memory data
                         invoke<CPU>('display_CPU', { num_format: cpu.format }).then(newCPU => {
@@ -90,6 +93,9 @@ export default function Toolbar() {
         }).catch(err => {
             push_std_out("error", err);
             set_debug_status(DebugStatus.END);
+            highlight_line.setLine('', 0);  // unhighlight line if program completed
+            toolbar_btn.setInactiveMode();
+            push_std_out("run", "Finished Debugging");
             stop = true;
         }).finally(async () => {
             // Update Terminal, CPU, and Memory data

@@ -7,7 +7,7 @@ pub fn condition_codes() -> &'static str {
 }
 
 fn register() -> &'static str {
-    r"(r\d+|sp|lr|pc)"
+    r"\s*(r\d+|sp|lr|pc)\s*"
 }
 
 fn mnemonic_extension() -> &'static str {
@@ -22,7 +22,7 @@ pub fn u_number() -> &'static str {
 /// Regex expression for signed immediate values
 /// ex: #0x12, #-12, #-0b1100, #12
 pub fn i_number() -> &'static str {
-    r"#-?(0b[01]+|0x[A-Fa-f\d]+|\d+)"
+    r"\s*#-?(0b[01]+|0x[A-Fa-f\d]+|\d+)\s*"
 }
 pub fn is_bin(num: &str) -> bool {
     Regex::new(r"^#-?0b[01]+$").unwrap().is_match(num)
@@ -40,11 +40,12 @@ pub fn get_all_numbers(line: &str) -> Result<Vec<u32>, Vec<String>> {
     let mut errors: Vec<String> = Vec::new();
     let mut numbers: Vec<u32> = Vec::new();
 
-    for mat in Regex::new(format!(r"(r\d+|lr|sp|pc|#[\da-fA-Fx]+|{})", i_number()).as_str())
+    for mat in Regex::new(format!(r"{}|#[\da-fA-Fx]+|{}", register(), i_number()).as_str())
         .unwrap()
         .find_iter(line)
         .map(|m| m.as_str())
     {
+        let mat = mat.trim();
         if mat.starts_with('r') {
             // handle register numbers
             match (&mat[1..]).parse::<u32>() {
@@ -123,22 +124,41 @@ pub fn set_nz_flags(num: u32, chip: &mut Processor) {
 
 #[allow(non_snake_case)]
 pub fn is_Rd_immed(line: &str) -> bool {
-    Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), i_number()).as_str())
+    Regex::new(format!(r"^\S+\s+{},{}$", register(), i_number()).as_str())
         .unwrap()
         .is_match(line)
 }
 
 #[allow(non_snake_case)]
 pub fn is_Rd_Rm(line: &str) -> bool {
-    Regex::new(format!(r"^\S+\s+{}\s*,\s*{}$", register(), register()).as_str())
+    Regex::new(format!(r"^\S+\s+{},{}$", register(), register()).as_str())
         .unwrap()
         .is_match(line)
 }
 #[allow(non_snake_case)]
 pub fn is_Rd_Rn_immed(line: &str) -> bool {
+    Regex::new(format!(r"^\S+\s+{},{},{}$", register(), register(), i_number()).as_str())
+        .unwrap()
+        .is_match(line)
+}
+#[allow(non_snake_case)]
+pub fn is_Rd_Rn_Rm(line: &str) -> bool {
+    Regex::new(format!(r"^\S+\s+{},{},{}$", register(), register(), register()).as_str())
+        .unwrap()
+        .is_match(line)
+}
+
+#[allow(non_snake_case)]
+pub fn is_Rt_Rn(line: &str) -> bool {
+    Regex::new(format!(r"^\S+\s+{},\s*\[{}]$", register(), register(),).as_str())
+        .unwrap()
+        .is_match(line)
+}
+#[allow(non_snake_case)]
+pub fn is_Rt_Rn_imm(line: &str) -> bool {
     Regex::new(
         format!(
-            r"^\S+\s+{}\s*,\s*{}\s*,\s*{}$",
+            r"^\S+\s+{},\s*\[{},{}]$",
             register(),
             register(),
             i_number()
@@ -149,13 +169,27 @@ pub fn is_Rd_Rn_immed(line: &str) -> bool {
     .is_match(line)
 }
 #[allow(non_snake_case)]
-pub fn is_Rd_Rn_Rm(line: &str) -> bool {
+pub fn is_Rt_Rn_imm_post(line: &str) -> bool {
     Regex::new(
         format!(
-            r"^\S+\s+{}\s*,\s*{}\s*,\s*{}$",
+            r"^\S+{},\s*\[{}]\s*,{}$",
             register(),
             register(),
-            register()
+            i_number()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+#[allow(non_snake_case)]
+pub fn is_Rt_Rn_imm_pre(line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^\S+\s+{},\s*\[{},{}]!$",
+            register(),
+            register(),
+            i_number()
         )
         .as_str(),
     )

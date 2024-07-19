@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback } from "react"
+import { createContext, useContext, useState, useCallback, useMemo } from "react"
 
 interface OpenedFile {
     id: string;
@@ -33,30 +33,27 @@ const SourceContext = createContext<ISourceContext>({
 });
 
 export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
-    const [selected, setSelected] = useState('');   // file id
+    const [selected, setSelect] = useState('');   // file id
     const [opened, updateOpenedFiles] = useState<OpenedFile[]>([]); // list of opened file id's
     const [directory, setDirectory] = useState(''); // current directory
 
-    const setSelect = (id: string) => {
-        setSelected(id);
-    }
     const addOpenedFile = useCallback((id: string) => {
         updateOpenedFiles(prevOpen => {
             if (prevOpen.some(file => file.id === id))
                 return prevOpen;    // do nothing if file already opened
             return [...prevOpen, { id, bSave: false, breakpoints: [] }]
         });
-    }, [opened]);
+    }, []);
     // close opened file
     const delOpenedFile = useCallback((id: string) => {
         updateOpenedFiles(prevOpen => {
             prevOpen = prevOpen.filter(opened => opened.id !== id);
             if (prevOpen.length > 0 && id == selected)
-                setSelected(prevOpen[prevOpen.length - 1].id);
+                setSelect(prevOpen[prevOpen.length - 1].id);
             return prevOpen;
         }
         );
-    }, [opened]);
+    }, []);
     // set save state for opened files
     const setSaveStateOpenedFile = useCallback((id: string, state: boolean) => {
         updateOpenedFiles(prevOpen => {
@@ -65,24 +62,26 @@ export const SourceProvider = ({ children }: { children: JSX.Element | JSX.Eleme
                 newOpen.find(file => file.id === id)!.bSave = state;
             return newOpen;
         });
-    }, [opened]);
+    }, []);
     const updateBreakpoints = useCallback((id: string, breakpoints: number[]) => {
         updateOpenedFiles(prevOpen => {
             let newOpen = [...prevOpen];    // make copy of old state
             newOpen.find(file => file.id === id)!.breakpoints = breakpoints;
             return newOpen;
         });
-    }, [opened]);
+    }, []);
+
+    const sourceValues = useMemo(() => ({
+        selected, setSelect,
+        opened,
+        addOpenedFile, delOpenedFile,
+        directory, setDirectory,
+        setSaveStateOpenedFile,
+        updateBreakpoints
+    }), [selected, opened, directory]);
 
     return (
-        <SourceContext.Provider value={{
-            selected, setSelect,
-            opened,
-            addOpenedFile, delOpenedFile,
-            directory, setDirectory,
-            setSaveStateOpenedFile,
-            updateBreakpoints
-        }}>
+        <SourceContext.Provider value={sourceValues}>
             {children}
         </SourceContext.Provider >
     );

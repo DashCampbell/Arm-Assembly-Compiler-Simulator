@@ -151,9 +151,26 @@ pub enum Operands {
     label {
         label: usize,
     },
+    Rt_Rn_imm {
+        Rt: u8,
+        Rn: u8,
+        imm: Option<i32>,
+    },
+    Rt_Rn_imm_post {
+        Rt: u8,
+        Rn: u8,
+        imm: i32,
+    },
+    Rt_Rn_imm_pre {
+        Rt: u8,
+        Rn: u8,
+        imm: i32,
+    },
 }
-impl Operands {
-    pub fn from_str(line: &str) -> Result<Self, Vec<String>> {
+impl FromStr for Operands {
+    type Err = Vec<String>;
+
+    fn from_str(line: &str) -> Result<Self, Self::Err> {
         let args = hp::get_all_numbers(line)?;
         if hp::is_Rd_immed(line) {
             Ok(Self::Rd_immed {
@@ -178,6 +195,30 @@ impl Operands {
                 Rn: args[1] as u8,
                 Rm: args[2] as u8,
                 shift: None,
+            })
+        } else if hp::is_Rt_Rn(line) {
+            Ok(Self::Rt_Rn_imm {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                imm: None,
+            })
+        } else if hp::is_Rt_Rn_imm(line) {
+            Ok(Self::Rt_Rn_imm {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                imm: Some(args[2] as i32),
+            })
+        } else if hp::is_Rt_Rn_imm_post(line) {
+            Ok(Self::Rt_Rn_imm_post {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                imm: args[2] as i32,
+            })
+        } else if hp::is_Rt_Rn_imm_pre(line) {
+            Ok(Self::Rt_Rn_imm_pre {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                imm: args[2] as i32,
             })
         } else {
             Err(error::invalid_args(line))
@@ -504,7 +545,14 @@ impl Program {
                 }
             }
             // run line, if a run-time error occurs stop program.
-            instruction.execute(line.extension.s, &line.operands, processor)?;
+            if let Err(runtime_error) =
+                instruction.execute(line.extension.s, &line.operands, processor)
+            {
+                return Err(format!(
+                    "\"{}\" line {}: {}",
+                    line.file_name, line.line_number, runtime_error
+                ));
+            }
             // TODO: Maybe add a time delay after instruction execution.
             // thread::sleep(Duration::from_millis(self.delay as u64));
 
@@ -519,7 +567,8 @@ impl Program {
         Ok("".into())
     }
     /// Debug compiled assembly instuctions
-    /// /// If Ok, returns (current file name, current line number, and standard output)
+    /// If Ok, returns (current file name, current line number, standard output, and debug status)
+    /// If Err, returns standard error
     pub fn debug_run(
         &self,
         processor: &mut Processor,
@@ -559,8 +608,15 @@ impl Program {
             }
         }
         // run line, if a run-time error occurs stop program.
-        instruction.execute(line.extension.s, &line.operands, processor)?;
-        return Ok(status);
+        if let Err(runtime_error) = instruction.execute(line.extension.s, &line.operands, processor)
+        {
+            Err(format!(
+                "\"{}\" line {}: {}",
+                line.file_name, line.line_number, runtime_error
+            ))
+        } else {
+            Ok(status)
+        }
     }
 }
 

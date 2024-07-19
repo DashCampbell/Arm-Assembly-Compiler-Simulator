@@ -45,7 +45,7 @@ export default function CodeArea() {
             {/** This area is for code content */}
 
             <div className="code-contents">
-                {opened.map(({ id, breakpoints }, index) => {
+                {opened.map(({ id, breakpoints, bSave }, index) => {
                     // key must be id and not i, otherwise tabs close wrong editor.
                     const file = getFileObject(id) as IFile;
 
@@ -53,7 +53,7 @@ export default function CodeArea() {
                         return <PreviewImage path={file.path} active={id === selected} />
                     } else if (all_content && all_content[index]) {
                         // do not render editor unless content is completly loaded, will cause many issues.
-                        return <CodeEditor key={id} id={id} content={all_content[index]} breakpoints={breakpoints} selected={id === selected} />
+                        return <CodeEditor key={id} id={id} save={bSave} content={all_content[index]} breakpoints={breakpoints} selected={id === selected} />
                     }
                 })}
             </div>

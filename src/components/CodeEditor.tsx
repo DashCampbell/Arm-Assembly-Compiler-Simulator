@@ -16,6 +16,7 @@ import { DebugStatus, useAssemblySource } from "@/context/AssemblyContext";
 interface Props {
     id: string;
     selected: boolean;
+    save: boolean;
     content: string;
     breakpoints: number[];
 }
@@ -23,8 +24,8 @@ interface Props {
 // NOTE: If given an [Object object] error about extensions, make sure all extensions are installed with npm.
 // npm i "missing extension"
 
-export default function CodeEditor({ id, selected, content, breakpoints }: Props) {
-    const { setSaveStateOpenedFile, updateBreakpoints } = useSource();
+export default function CodeEditor({ id, selected, save, content, breakpoints }: Props) {
+    const { setSaveStateOpenedFile, updateBreakpoints } = useMemo(() => useSource(), []);
     const { highlight_line, debug_status } = useAssemblySource();
     const editor = useRef<HTMLDivElement | null>(null);
     const extensions = useMemo(() => [
@@ -34,7 +35,7 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
         hightlight((id === highlight_line.id) ? highlight_line.number : 0),
     ], [breakpoints, highlight_line]);
 
-    const { state, view, setContainer } = useCodeMirror({
+    const { view, setContainer } = useCodeMirror({
         container: editor.current,
         height: "100%",
         theme: monokai,
@@ -44,7 +45,7 @@ export default function CodeEditor({ id, selected, content, breakpoints }: Props
         editable: debug_status === DebugStatus.RUNNING || debug_status === DebugStatus.END,
         onChange(_, viewUpdate) {
             // if file content is altered
-            if (viewUpdate.docChanged) {
+            if (!save && viewUpdate.docChanged) {
                 // Display "Not saved" icon in tab bar
                 setSaveStateOpenedFile(id, true);
             }

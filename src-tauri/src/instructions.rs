@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use crate::arm7::{MnemonicExtension, Operands, Processor};
-use crate::error;
 use crate::error::InstructionCompileErr;
+use crate::error::{self, check_memory_bounds};
 use crate::helpers as hp;
 
 /// Returns a Hashmap for all instructions, the key is the instruction's mnemonic
@@ -13,6 +14,7 @@ pub fn all_instructions() -> HashMap<String, Box<dyn Instruction>> {
     instructions.insert("cmp".into(), Box::new(CMP {}));
     instructions.insert("b".into(), Box::new(B {}));
     instructions.insert("bl".into(), Box::new(BL {}));
+    instructions.insert("strb".into(), Box::new(STRB {}));
 
     instructions
 }
@@ -258,6 +260,64 @@ impl Instruction for BL {
             Operands::label { label } => {
                 chip.R[14] = chip.R[15]; // store PC register into Link register
                 chip.R[15] = label as u32;
+            }
+            _ => return Err(error::invalid_operands()),
+        }
+        Ok(())
+    }
+}
+
+pub struct STRB;
+
+impl Instruction for STRB {
+    fn mnemonic(&self) -> &'static str {
+        "strb"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        let errors = InstructionCompileErr::new();
+        let operands = Operands::from_str(line)?;
+
+        match operands {
+            Operands::Rt_Rn_imm { .. }
+            | Operands::Rt_Rn_imm_post { .. }
+            | Operands::Rt_Rn_imm_pre { .. } => (),
+            _ => return Err(error::invalid_args(line)),
+        }
+        errors.result(operands)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        match *operands {
+            Operands::Rt_Rn_imm { Rt, Rn, imm } => {
+                // get byte
+                let byte = chip.R[Rt as usize].to_le_bytes()[0];
+                let address = error::check_memory_bounds(
+                    chip.R[Rn as usize]
+                        .overflowing_add_signed(imm.unwrap_or_default())
+                        .0,
+                    chip.memory.len(),
+                )?;
+                chip.memory[address] = byte;
+            }
+            Operands::Rt_Rn_imm_post { Rt, Rn, imm } => {
+                let byte = chip.R[Rt as usize].to_le_bytes()[0];
+                let address = error::check_memory_bounds(chip.R[Rn as usize], chip.memory.len())?;
+                chip.memory[address] = byte;
+                chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
+            }
+            Operands::Rt_Rn_imm_pre { Rt, Rn, imm } => {
+                let byte = chip.R[Rt as usize].to_le_bytes()[0];
+                chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
+                let address = error::check_memory_bounds(chip.R[Rn as usize], chip.memory.len())?;
+                chip.memory[address] = byte;
             }
             _ => return Err(error::invalid_operands()),
         }

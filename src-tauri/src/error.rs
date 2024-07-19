@@ -192,3 +192,15 @@ pub fn invalid_args(line: &str) -> Vec<String> {
 pub fn invalid_operands() -> String {
     "Wrong arguments given.".into()
 }
+
+/// Check if address being accessed is out of bounds.
+pub fn check_memory_bounds(address: u32, memory_size: usize) -> Result<usize, String> {
+    if address as usize >= memory_size {
+        Err(format!(
+            "Address is out of bounds, address can only be in range (0, {})",
+            memory_size - 1
+        ))
+    } else {
+        Ok(address as usize)
+    }
+}

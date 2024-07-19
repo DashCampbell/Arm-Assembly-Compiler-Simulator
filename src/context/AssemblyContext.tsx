@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, useRef } from "react"
+import { createContext, useContext, useState, useCallback, useRef, useMemo } from "react"
 
 interface I_std_out {
     type: string,
@@ -157,25 +157,27 @@ export const AssemblySourceProvider = ({ children }: { children: JSX.Element | J
 
     const clear_std_out = useCallback(() => {
         setSTDOut(_ => []);
-    }, [std_out]);
+    }, []);
     const push_std_out = useCallback((type: string, message: string) => {
         setSTDOut(std_out => [...std_out, { type, message }]);
-    }, [std_out]);
+    }, []);
+
+    const assemblyValues = useMemo(() => ({
+        cpu,
+        memory,
+        std_out,
+        clear_std_out,
+        push_std_out,
+        std_in_active,
+        set_std_in_active,
+        toolbar_btn,
+        debug_status,
+        set_debug_status,
+        highlight_line,
+    }), [cpu, memory, std_out, std_in_active, toolbar_btn, debug_status, highlight_line]);
 
     return (
-        <AssemblyContext.Provider value={{
-            cpu,
-            memory,
-            std_out,
-            clear_std_out,
-            push_std_out,
-            std_in_active,
-            set_std_in_active,
-            toolbar_btn,
-            debug_status,
-            set_debug_status,
-            highlight_line,
-        }}>
+        <AssemblyContext.Provider value={assemblyValues}>
             {children}
         </AssemblyContext.Provider>
     )

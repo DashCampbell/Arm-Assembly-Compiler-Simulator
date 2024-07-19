@@ -16,6 +16,7 @@ mod tests {
     #[test]
     fn test_mov1() {
         let en = MOV.get_operands(&MnemonicExtension::new(), "mov r14, #0x20");
+        println!("{:?}", en);
         match en {
             Ok(Operands::Rd_immed { Rd, immed }) => {
                 assert_eq!(Rd, 14);
@@ -139,6 +140,14 @@ mod tests {
         assert_eq!(hp::is_Rd_Rn_Rm("addcc    r12 , r18 , r0"), true);
         assert_eq!(hp::is_Rd_Rn_Rm("adds r12, r,#0xa"), false);
         assert_eq!(hp::is_Rd_Rn_Rm("adds r12, r"), false);
+    }
+    #[test]
+    fn is_rt_rn_imm() {
+        assert_eq!(hp::is_Rt_Rn_imm("ldr r0, [r1, #12"), false);
+        assert_eq!(hp::is_Rt_Rn_imm("ldr r0  , [ r1  , #12  ]"), true);
+        assert_eq!(hp::is_Rt_Rn_imm("ldr r0, [r1]"), false);
+        assert_eq!(hp::is_Rt_Rn_imm("ldr r12,[r1,#0xaaff]"), true);
+        assert_eq!(hp::is_Rt_Rn_imm("ldr pc, [sp, #0xaaff]"), true);
     }
 
     #[test]
