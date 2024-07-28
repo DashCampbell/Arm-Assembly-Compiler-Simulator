@@ -49,13 +49,22 @@ pub async fn compile(
     let mut errors = CompileErr::new();
 
     let mut labels = Labels::get_global_labels(&config)?;
+    let mut string_labels: HashMap<String, usize> = HashMap::new();
+
     // Compile each file
     for (file_name, file_content) in config.read_contents()? {
         errors.update_current_file(file_name.clone());
         it_block.clear();
 
         // find all labels first
-        labels.get_local_labels(&file_content, &mut pc, &mut errors);
+        let (new_strings, new_string_labels) =
+            labels.get_local_labels(&file_content, &mut pc, &mut errors);
+        string_labels.extend(
+            new_string_labels
+                .into_iter()
+                .map(|(k, v)| (k, v + program.string_messages.len())),
+        );
+        program.string_messages.extend(new_strings);
 
         // Parse instructions
         for (line_number, line) in file_content.lines().enumerate() {
@@ -88,6 +97,7 @@ pub async fn compile(
                     is_breakpoint,
                     &line,
                     &labels,
+                    &string_labels,
                 ) {
                     errors.extend(err);
                 }
@@ -110,7 +120,7 @@ pub async fn run(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
     kill_switch: State<'_, GlobalKillSwitch>,
-) -> Result<String, String> {
+) -> Result<Option<String>, String> {
     // program is compiled and now immutable
     let program = program
         .0
@@ -140,13 +150,7 @@ pub async fn debug_run(
         .lock()
         .expect("Failed to get Program in run function.");
 
-    // get processor
-    let mut processor = processor
-        .0
-        .lock()
-        .expect("Failed to get processor in run function.");
-
-    program.debug_run(&mut processor, kill_switch)
+    program.debug_run(processor, kill_switch)
 }
 #[tauri::command]
 /// Stops the current assembly code from running.
@@ -209,14 +213,8 @@ pub async fn display_Memory(
 
 /// Contains all functions & structs pertaining to compiling assembly code.
 pub mod compile {
-    use tauri::utils::config;
-
-    use super::{CompileErr, Regex, VecDeque};
-    use crate::arm7::ConditionCode;
-    use std::collections::HashMap;
+    use super::{CompileErr, Regex};
     use std::fs;
-    use std::hash::Hash;
-    use std::str::FromStr;
 
     #[derive(serde::Serialize)]
     #[allow(non_snake_case)]
@@ -254,8 +252,9 @@ pub mod compile {
         pub fn new(dir_path: &'a str) -> Result<Self, Vec<String>> {
             let config = match fs::read_to_string(format!("{}config.json", dir_path)) {
                 // parse config file
-                Ok(content) => serde_json::from_str::<Config>(&content)
-                    .map_err(|err| CompileErr::message(err.to_string())),
+                Ok(content) => serde_json::from_str::<Config>(&content).map_err(|err| {
+                    CompileErr::message(format!("Configuration Error in \"config.json\" {}", err))
+                }),
                 // Default configuration.
                 Err(_) => Ok(Self {
                     files: vec!["main.s".into()],

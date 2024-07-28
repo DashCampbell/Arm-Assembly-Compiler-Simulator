@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 /// Contains functions to help with error handling.
-use crate::arm7::{ConditionCode, ITStatus, Operands};
+use crate::arm7::{ConditionCode, ITStatus, MemSize, Operands};
 use std::str::FromStr;
 
 /// Stores and handles general compile time errors
@@ -142,6 +142,14 @@ impl InstructionCompileErr {
             Err(self.0)
         }
     }
+    /// Error if shift value cannot be contained in 2 bits.
+    pub fn check_mem_left_shift(&mut self, shift: Option<u8>) {
+        if let Some(shift) = shift {
+            if shift > 3 {
+                self.0.push("Shift value must be within 2 bits.".into());
+            }
+        }
+    }
     /// Error if immediate value cannot be contained in 12 bits.
     pub fn check_imm8(&mut self, immed: u32) {
         if immed > u32::from(u8::MAX) {
@@ -194,10 +202,21 @@ pub fn invalid_operands() -> String {
 }
 
 /// Check if address being accessed is out of bounds.
-pub fn check_memory_bounds(address: u32, memory_size: usize) -> Result<usize, String> {
+pub fn check_memory_bounds(
+    address: u32,
+    memory_size: usize,
+    bytes: MemSize,
+) -> Result<usize, String> {
+    let offset = bytes.bytes() as u32 - 1;
     if address as usize >= memory_size {
         Err(format!(
-            "Address is out of bounds, address can only be in range (0, {})",
+            "Address \"{:#010x}\" is out of bounds, address can only be in range (0, {})",
+            address,
+            memory_size - 1
+        ))
+    } else if (address + offset) as usize >= memory_size {
+        Err(format!(
+            "Address accesses memory that is out of bounds, address can only be in range (0, {})",
             memory_size - 1
         ))
     } else {

@@ -1,13 +1,29 @@
 use regex::Regex;
-use std::{collections::HashMap, fmt::format, str::FromStr, sync::Mutex, thread, time::Duration};
-use tauri::{window, State, Window};
+use std::{collections::HashMap, str::FromStr, thread, time::Duration};
+use tauri::State;
 
 pub use crate::instructions::*;
 use crate::{
-    error::{self, CompileErr},
+    error::{self, CompileErr, InstructionCompileErr},
     helpers as hp,
-    Process::{compile, GlobalKillSwitch},
+    Process::{compile, GlobalKillSwitch, GlobalProcessor},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MemSize {
+    BYTE,
+    HALFWORD,
+    WORD,
+}
+impl MemSize {
+    pub fn bytes(&self) -> usize {
+        match *self {
+            MemSize::BYTE => 1,
+            MemSize::HALFWORD => 2,
+            MemSize::WORD => 4,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Shifts applied to registers. Shifts an element by k bits, k should be <= 32.
@@ -32,6 +48,33 @@ pub enum DebugStatus {
     BREAKPOINT,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Label {
+    Index(usize),
+    CR,
+    VALUE,
+    PRINTF,
+    GetChar,
+    GetNumber,
+}
+impl FromStr for Label {
+    type Err = Vec<String>;
+
+    fn from_str(label: &str) -> Result<Self, Self::Err> {
+        match label {
+            "cr" => Ok(Self::CR),
+            "value" => Ok(Self::VALUE),
+            "getchar" => Ok(Self::GetChar),
+            "getnumber" => Ok(Self::GetNumber),
+            "printf" => Ok(Self::PRINTF),
+            _ => Err(CompileErr::message(format!(
+                "Label \"{}\" may not exist.",
+                label
+            ))),
+        }
+    }
+}
+
 /// Contains all labels, and handles all label logic
 #[derive(Debug)]
 pub struct Labels {
@@ -39,7 +82,7 @@ pub struct Labels {
     local_labels: HashMap<String, usize>,
 }
 impl Labels {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             global_labels: HashMap::new(),
             local_labels: HashMap::new(),
@@ -79,28 +122,46 @@ impl Labels {
         labels.local_labels.clear();
         Ok(labels)
     }
-    /// Retrieves all local labels inside a file
+    /// Retrieves all local labels inside a file, and returns local string variables
     pub fn get_local_labels(
         &mut self,
         file_content: &String,
         pc: &mut usize,
         errors: &mut CompileErr,
-    ) {
+    ) -> (Vec<String>, HashMap<String, usize>) {
         let re_label = Regex::new(r"^[a-zA-Z_]+\w*\s*:$").unwrap();
         let mut local_labels: HashMap<String, usize> = HashMap::new();
+        let mut last_label: Option<String> = None;
+        let mut strings: Vec<String> = Vec::new();
+        let mut string_labels: HashMap<String, usize> = HashMap::new();
 
         for (line_number, line) in file_content.lines().enumerate() {
             errors.update_line_number(line_number); // update line number for error messages
             let line = compile::preprocess_line(line);
 
             // skip if white space, or directive, or IT instruction or directive
+            if line.starts_with(".string") {
+                let line = line.split_once('\"');
+                if let Some((_, mes)) = line {
+                    strings.push(mes[..mes.len() - 1].to_string());
+                    if let Some(label) = &last_label {
+                        string_labels.insert(label.clone(), strings.len() - 1);
+                    } else {
+                        errors.push_message(".string variable should have a label beforehand.");
+                    }
+                } else {
+                    errors.push_message("Invalid syntax.");
+                }
+            }
             if line.is_empty() || line.to_lowercase().starts_with("it") || line.starts_with('.') {
                 continue;
             }
             // If it is a label, store it in the Hashmap of local_labels.
             if line.ends_with(':') {
                 if re_label.is_match(line) {
-                    local_labels.insert(line.trim_end_matches(':').into(), *pc);
+                    let label = line.trim_end_matches(':').to_string();
+                    local_labels.insert(label.clone(), *pc);
+                    last_label = Some(label);
                 } else {
                     errors.push_message("Invalid label.");
                 }
@@ -109,17 +170,15 @@ impl Labels {
             }
         }
         self.local_labels = local_labels;
+        (strings, string_labels)
     }
-    fn get(&self, label: &str) -> Result<usize, Vec<String>> {
+    fn get(&self, label: &str) -> Result<Label, Vec<String>> {
         if self.global_labels.contains_key(label) {
-            Ok(*self.global_labels.get(label).unwrap())
+            Ok(Label::Index(*self.global_labels.get(label).unwrap()))
         } else if self.local_labels.contains_key(label) {
-            Ok(*self.local_labels.get(label).unwrap())
+            Ok(Label::Index(*self.local_labels.get(label).unwrap()))
         } else {
-            Err(CompileErr::message(format!(
-                "Label \"{}\" does not exist.",
-                label
-            )))
+            Label::from_str(label)
         }
     }
 }
@@ -149,7 +208,7 @@ pub enum Operands {
         shift: Option<Shift>,
     },
     label {
-        label: usize,
+        label: Label,
     },
     Rt_Rn_imm {
         Rt: u8,
@@ -166,6 +225,33 @@ pub enum Operands {
         Rn: u8,
         imm: i32,
     },
+    Rt_Rn_Rm {
+        Rt: u8,
+        Rn: u8,
+        Rm: u8,
+        shift: Option<u8>,
+    },
+    Rt_label {
+        Rt: u8,
+        label: usize,
+    },
+}
+impl Operands {
+    pub fn is_memory_operands(line: &str) -> Result<Self, Vec<String>> {
+        let mut errors = InstructionCompileErr::new();
+        let operands = Operands::from_str(line)?;
+
+        match operands {
+            Operands::Rt_Rn_imm { .. }
+            | Operands::Rt_Rn_imm_post { .. }
+            | Operands::Rt_Rn_imm_pre { .. } => (),
+            Operands::Rt_Rn_Rm { shift, .. } => {
+                errors.check_mem_left_shift(shift);
+            }
+            _ => return Err(error::invalid_args(line)),
+        }
+        errors.result(operands)
+    }
 }
 impl FromStr for Operands {
     type Err = Vec<String>;
@@ -219,6 +305,25 @@ impl FromStr for Operands {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 imm: args[2] as i32,
+            })
+        } else if hp::is_Rt_Rn_Rm(line) {
+            Ok(Self::Rt_Rn_Rm {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                Rm: args[2] as u8,
+                shift: None,
+            })
+        } else if hp::is_Rt_Rn_Rm_shift(line) {
+            Ok(Self::Rt_Rn_Rm {
+                Rt: args[0] as u8,
+                Rn: args[1] as u8,
+                Rm: args[2] as u8,
+                shift: Some(args[3] as u8),
+            })
+        } else if hp::is_Rt_equal_label(line) {
+            Ok(Self::Rt_label {
+                Rt: args[0] as u8,
+                label: 0,
             })
         } else {
             Err(error::invalid_args(line))
@@ -365,29 +470,29 @@ impl Line {
 /// Labels, lines, and a list of all Instructions
 /// Initialized at compile time, cannot be changed at runtime.
 pub struct Program {
-    /// A hashmap of labels. key = Label, value = index in Compile Lines list
-    labels: HashMap<String, usize>,
     /// A list of compiled instruction lines
     lines: Vec<Line>,
     /// The Arm Intruction Set
     instructions: HashMap<String, Box<dyn Instruction>>,
     /// The delay between each instruction
     delay: u16,
+    /// stores string variables
+    pub string_messages: Vec<String>,
 }
 
 impl Program {
     pub fn new() -> Self {
         Program {
-            labels: HashMap::new(),
             lines: Vec::new(),
             instructions: all_instructions(),
             delay: 0,
+            string_messages: Vec::new(),
         }
     }
     pub fn reset(&mut self, delay: u16) {
-        self.labels.clear();
         self.lines.clear();
         self.delay = delay;
+        self.string_messages.clear();
     }
     /// Pushes a new compiled line.
     fn push_line(
@@ -412,10 +517,7 @@ impl Program {
     /// Warning: In implementation, the line is converted to lowercase first before being passed to this function.
     pub fn find_mnemonic(&self, line: &String) -> Option<(String, MnemonicExtension)> {
         // Get the first word.
-        let mut line = match line.split_whitespace().next() {
-            Some(line) => line,
-            None => return None,
-        };
+        let mut line = line.split_whitespace().next()?;
         // contains metadata on extensions to mnemonic
         let mut extension = MnemonicExtension::new();
 
@@ -484,6 +586,34 @@ impl Program {
             Err(CompileErr::message("Invalid branch instruction.".into()))
         }
     }
+    fn compile_ldr_instruction(
+        &mut self,
+        _extension: &MnemonicExtension,
+        line: &String,
+        string_labels: &HashMap<String, usize>,
+    ) -> Result<Operands, Vec<String>> {
+        let mut errors = InstructionCompileErr::new();
+        let operands = Operands::from_str(line)?;
+
+        match operands {
+            Operands::Rt_Rn_imm { .. }
+            | Operands::Rt_Rn_imm_post { .. }
+            | Operands::Rt_Rn_imm_pre { .. } => (),
+            Operands::Rt_Rn_Rm { shift, .. } => {
+                errors.check_mem_left_shift(shift);
+            }
+            Operands::Rt_label { Rt, .. } => {
+                // get the string label
+                let label = Regex::new(r"\w+$").unwrap().find(line).unwrap().as_str();
+                return Ok(Operands::Rt_label {
+                    Rt,
+                    label: *string_labels.get(label).unwrap(),
+                });
+            }
+            _ => return Err(error::invalid_args(line)),
+        }
+        errors.result(operands)
+    }
     /// Compiles an instruction.
     /// Returns compile time errors, if instruction is invalid.
     pub fn compile_instruction(
@@ -495,6 +625,7 @@ impl Program {
         is_breakpoint: bool,
         line: &String,
         labels: &Labels,
+        string_labels: &HashMap<String, usize>,
     ) -> Result<(), Vec<String>> {
         // get instruction
         let instruction = self
@@ -506,6 +637,8 @@ impl Program {
         let operands = if mnemonic == "b" || mnemonic == "bl" {
             // compile branch instructions separately.
             self.compile_branch_instruction(&extension, line, &labels)?
+        } else if mnemonic == "ldr" {
+            self.compile_ldr_instruction(&extension, line, string_labels)?
         } else {
             instruction.get_operands(&extension, line)?
         };
@@ -526,8 +659,10 @@ impl Program {
         &self,
         processor: &mut Processor,
         shutdown: State<'_, GlobalKillSwitch>,
-    ) -> Result<String, String> {
+    ) -> Result<Option<String>, String> {
         // Starting at the PC index.
+        let mut std_out = String::new();
+
         while (processor.R[15] as usize) < self.lines.len() {
             // get the line to run
             let line = &self.lines[processor.R[15] as usize];
@@ -544,17 +679,44 @@ impl Program {
                     continue;
                 }
             }
-            // run line, if a run-time error occurs stop program.
-            if let Err(runtime_error) =
-                instruction.execute(line.extension.s, &line.operands, processor)
-            {
-                return Err(format!(
-                    "\"{}\" line {}: {}",
-                    line.file_name, line.line_number, runtime_error
-                ));
+            // handle predefined subroutines
+            if line.mnemonic == "b" || line.mnemonic == "bl" {
+                match line.operands {
+                    Operands::label { label } => match label {
+                        Label::CR => {
+                            std_out += "\n";
+                        }
+                        Label::VALUE => {
+                            std_out = format!("{}{}", std_out, processor.R[0] as i32);
+                        }
+                        Label::PRINTF => {
+                            std_out = format!(
+                                "{}{}",
+                                std_out, self.string_messages.get(processor.R[0] as usize).ok_or_else(|| format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
+                            );
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+            } else if line.mnemonic == "ldr" {
+                match line.operands {
+                    Operands::Rt_label { Rt, label } => {
+                        processor.R[Rt as usize] = label as u32;
+                    }
+                    _ => {
+                        hp::load_bytes(&line.operands, processor, MemSize::WORD).map_err(|err| {
+                            format!("\"{}\" line {}: {}", line.file_name, line.line_number, err)
+                        })?
+                    }
+                }
+            } else {
+                instruction
+                    .execute(line.extension.s, &line.operands, processor)
+                    .map_err(|err| {
+                        format!("\"{}\" line {}: {}", line.file_name, line.line_number, err)
+                    })?;
             }
-            // TODO: Maybe add a time delay after instruction execution.
-            // thread::sleep(Duration::from_millis(self.delay as u64));
 
             // shutdown program if Stop button was pressed.
             let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
@@ -564,20 +726,27 @@ impl Program {
                 break;
             }
         }
-        Ok("".into())
+        Ok(Some(std_out))
     }
     /// Debug compiled assembly instuctions
     /// If Ok, returns (current file name, current line number, standard output, and debug status)
     /// If Err, returns standard error
     pub fn debug_run(
         &self,
-        processor: &mut Processor,
+        processor: State<'_, GlobalProcessor>,
         shutdown: State<'_, GlobalKillSwitch>,
     ) -> Result<(String, usize, String, DebugStatus), String> {
         // time delay for instruction
         thread::sleep(Duration::from_millis(self.delay as u64));
+
+        // get processor
+        let mut processor = processor
+            .0
+            .lock()
+            .expect("Failed to get processor in run function.");
         // Terminate process if stop button was pressed, or end of file was reached.
         let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
+
         if (processor.R[15] as usize) >= self.lines.len() || *kill_switch {
             *kill_switch = false;
             return Ok(("".into(), 0, "".into(), DebugStatus::END));
@@ -608,7 +777,8 @@ impl Program {
             }
         }
         // run line, if a run-time error occurs stop program.
-        if let Err(runtime_error) = instruction.execute(line.extension.s, &line.operands, processor)
+        if let Err(runtime_error) =
+            instruction.execute(line.extension.s, &line.operands, &mut processor)
         {
             Err(format!(
                 "\"{}\" line {}: {}",

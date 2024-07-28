@@ -31,16 +31,17 @@ export default function Toolbar() {
         push_std_out("compile", "Compiling...");
 
         invoke('compile', { dir_path: directory })
-            .then(std_out => {
+            .then(_ => {
                 push_std_out("compile", "Compiled Successfully");
 
                 // Run assembly code, activate Stop btn.
                 push_std_out("run", "Running...");
                 toolbar_btn.setRunningMode();
 
-                invoke<string>('run')
-                    .then((res: string) => {
-                        push_std_out("text", res);
+                invoke<string | null>('run')
+                    .then((res) => {
+                        if (res)
+                            push_std_out("text", res);
                         push_std_out("run", "Finished Running");
                     })
                     .catch(err => {

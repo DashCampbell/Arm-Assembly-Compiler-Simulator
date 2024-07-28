@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use crate::arm7::{MnemonicExtension, Operands, Processor};
+use crate::arm7::{Label, MemSize, MnemonicExtension, Operands, Processor};
 use crate::error::InstructionCompileErr;
-use crate::error::{self, check_memory_bounds};
+use crate::error::{self};
 use crate::helpers as hp;
 
 /// Returns a Hashmap for all instructions, the key is the instruction's mnemonic
@@ -15,6 +15,11 @@ pub fn all_instructions() -> HashMap<String, Box<dyn Instruction>> {
     instructions.insert("b".into(), Box::new(B {}));
     instructions.insert("bl".into(), Box::new(BL {}));
     instructions.insert("strb".into(), Box::new(STRB {}));
+    instructions.insert("strh".into(), Box::new(STRH {}));
+    instructions.insert("str".into(), Box::new(STR {}));
+    instructions.insert("ldrb".into(), Box::new(LDRB {}));
+    instructions.insert("ldrh".into(), Box::new(LDRH {}));
+    instructions.insert("ldr".into(), Box::new(LDR {}));
 
     instructions
 }
@@ -219,7 +224,9 @@ impl Instruction for B {
         _extension: &MnemonicExtension,
         _line: &str,
     ) -> Result<Operands, Vec<String>> {
-        Ok(Operands::label { label: 0 })
+        Ok(Operands::label {
+            label: Label::Index(0),
+        })
     }
     fn execute(
         &self,
@@ -228,9 +235,12 @@ impl Instruction for B {
         chip: &mut Processor,
     ) -> Result<(), String> {
         match *operands {
-            Operands::label { label } => {
-                chip.R[15] = label as u32;
-            }
+            Operands::label { label } => match label {
+                Label::Index(label) => {
+                    chip.R[15] = label as u32;
+                }
+                _ => (),
+            },
             _ => return Err(error::invalid_operands()),
         }
         Ok(())
@@ -248,7 +258,9 @@ impl Instruction for BL {
         _extension: &MnemonicExtension,
         _line: &str,
     ) -> Result<Operands, Vec<String>> {
-        Ok(Operands::label { label: 0 })
+        Ok(Operands::label {
+            label: Label::Index(0),
+        })
     }
     fn execute(
         &self,
@@ -258,8 +270,13 @@ impl Instruction for BL {
     ) -> Result<(), String> {
         match *operands {
             Operands::label { label } => {
-                chip.R[14] = chip.R[15]; // store PC register into Link register
-                chip.R[15] = label as u32;
+                match label {
+                    Label::Index(label) => {
+                        chip.R[14] = chip.R[15]; // store PC register into Link register
+                        chip.R[15] = label as u32;
+                    }
+                    _ => (),
+                }
             }
             _ => return Err(error::invalid_operands()),
         }
@@ -278,16 +295,7 @@ impl Instruction for STRB {
         _extension: &MnemonicExtension,
         line: &str,
     ) -> Result<Operands, Vec<String>> {
-        let errors = InstructionCompileErr::new();
-        let operands = Operands::from_str(line)?;
-
-        match operands {
-            Operands::Rt_Rn_imm { .. }
-            | Operands::Rt_Rn_imm_post { .. }
-            | Operands::Rt_Rn_imm_pre { .. } => (),
-            _ => return Err(error::invalid_args(line)),
-        }
-        errors.result(operands)
+        Operands::is_memory_operands(line)
     }
     fn execute(
         &self,
@@ -295,32 +303,120 @@ impl Instruction for STRB {
         operands: &Operands,
         chip: &mut Processor,
     ) -> Result<(), String> {
-        match *operands {
-            Operands::Rt_Rn_imm { Rt, Rn, imm } => {
-                // get byte
-                let byte = chip.R[Rt as usize].to_le_bytes()[0];
-                let address = error::check_memory_bounds(
-                    chip.R[Rn as usize]
-                        .overflowing_add_signed(imm.unwrap_or_default())
-                        .0,
-                    chip.memory.len(),
-                )?;
-                chip.memory[address] = byte;
-            }
-            Operands::Rt_Rn_imm_post { Rt, Rn, imm } => {
-                let byte = chip.R[Rt as usize].to_le_bytes()[0];
-                let address = error::check_memory_bounds(chip.R[Rn as usize], chip.memory.len())?;
-                chip.memory[address] = byte;
-                chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
-            }
-            Operands::Rt_Rn_imm_pre { Rt, Rn, imm } => {
-                let byte = chip.R[Rt as usize].to_le_bytes()[0];
-                chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
-                let address = error::check_memory_bounds(chip.R[Rn as usize], chip.memory.len())?;
-                chip.memory[address] = byte;
-            }
-            _ => return Err(error::invalid_operands()),
-        }
-        Ok(())
+        hp::store_bytes(operands, chip, MemSize::BYTE)
+    }
+}
+
+pub struct STRH;
+
+impl Instruction for STRH {
+    fn mnemonic(&self) -> &'static str {
+        "strh"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Operands::is_memory_operands(line)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        hp::store_bytes(operands, chip, MemSize::HALFWORD)
+    }
+}
+
+pub struct STR;
+
+impl Instruction for STR {
+    fn mnemonic(&self) -> &'static str {
+        "str"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Operands::is_memory_operands(line)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        hp::store_bytes(operands, chip, MemSize::WORD)
+    }
+}
+
+pub struct LDRB;
+
+impl Instruction for LDRB {
+    fn mnemonic(&self) -> &'static str {
+        "ldrb"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Operands::is_memory_operands(line)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        hp::load_bytes(operands, chip, MemSize::BYTE)
+    }
+}
+pub struct LDRH;
+
+impl Instruction for LDRH {
+    fn mnemonic(&self) -> &'static str {
+        "ldrh"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Operands::is_memory_operands(line)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        hp::load_bytes(operands, chip, MemSize::HALFWORD)
+    }
+}
+
+pub struct LDR;
+
+impl Instruction for LDR {
+    fn mnemonic(&self) -> &'static str {
+        "ldr"
+    }
+    fn get_operands(
+        &self,
+        _extension: &MnemonicExtension,
+        line: &str,
+    ) -> Result<Operands, Vec<String>> {
+        Operands::is_memory_operands(line)
+    }
+    fn execute(
+        &self,
+        _s_suffix: bool,
+        operands: &Operands,
+        chip: &mut Processor,
+    ) -> Result<(), String> {
+        hp::load_bytes(operands, chip, MemSize::WORD)
     }
 }

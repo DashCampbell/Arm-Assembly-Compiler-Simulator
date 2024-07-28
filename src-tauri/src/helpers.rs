@@ -1,4 +1,7 @@
-use crate::arm7::Processor;
+use crate::{
+    arm7::{MemSize, Operands, Processor},
+    error,
+};
 use regex::Regex;
 
 /// Regex expression for every condition code.
@@ -196,8 +199,100 @@ pub fn is_Rt_Rn_imm_pre(line: &str) -> bool {
     .unwrap()
     .is_match(line)
 }
+#[allow(non_snake_case)]
+pub fn is_Rt_Rn_Rm(line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^\S+\s+{},\s*\[{},{}]$",
+            register(),
+            register(),
+            register()
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+#[allow(non_snake_case)]
+pub fn is_Rt_Rn_Rm_shift(line: &str) -> bool {
+    Regex::new(
+        format!(
+            r"^\S+\s+{},\s*\[{},{},\s*lsl\s*{}]$",
+            register(),
+            register(),
+            register(),
+            i_number(),
+        )
+        .as_str(),
+    )
+    .unwrap()
+    .is_match(line)
+}
+#[allow(non_snake_case)]
+/// ldr rt ,= <label>
+pub fn is_Rt_equal_label(line: &str) -> bool {
+    Regex::new(format!(r"^\S+{},=\s*\S+\s*$", register(),).as_str())
+        .unwrap()
+        .is_match(line)
+}
 
-/// Determines if line is in the format "mnemonic <extensions> <label>"
+/// Determines if line is in the format "mnemonic<extensions> <label>"
 pub fn is_label(line: &str) -> bool {
     Regex::new(r"^\S+\s+\w+$").unwrap().is_match(line)
+}
+
+fn get_rt_and_address(operands: &Operands, chip: &mut Processor) -> Result<(u8, u32), String> {
+    match *operands {
+        Operands::Rt_Rn_imm { Rt, Rn, imm } => Ok((
+            Rt,
+            chip.R[Rn as usize]
+                .overflowing_add_signed(imm.unwrap_or_default())
+                .0,
+        )),
+        Operands::Rt_Rn_imm_post { Rt, Rn, imm } => {
+            let address = chip.R[Rn as usize];
+            chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
+            Ok((Rt, address))
+        }
+        Operands::Rt_Rn_imm_pre { Rt, Rn, imm } => {
+            chip.R[Rn as usize] = chip.R[Rn as usize].overflowing_add_signed(imm).0;
+            Ok((Rt, chip.R[Rn as usize]))
+        }
+        Operands::Rt_Rn_Rm { Rt, Rn, Rm, shift } => Ok((
+            Rt,
+            chip.R[Rn as usize]
+                .overflowing_add(
+                    chip.R[Rm as usize]
+                        .overflowing_shl(shift.unwrap_or_default() as u32)
+                        .0,
+                )
+                .0,
+        )),
+        _ => return Err(error::invalid_operands()),
+    }
+}
+
+/// Stores a byte, halfword, or word in memory
+pub fn store_bytes(operands: &Operands, chip: &mut Processor, size: MemSize) -> Result<(), String> {
+    let (rt, address) = get_rt_and_address(operands, chip)?;
+    let address = error::check_memory_bounds(address, chip.memory.len(), size)?;
+    let bytes = chip.R[rt as usize].to_le_bytes();
+    for i in 0..size.bytes() {
+        chip.memory[address + i] = bytes[i];
+    }
+    Ok(())
+}
+
+/// Stores a byte, halfword, or word in memory
+pub fn load_bytes(operands: &Operands, chip: &mut Processor, size: MemSize) -> Result<(), String> {
+    let (rt, address) = get_rt_and_address(operands, chip)?;
+    let address = error::check_memory_bounds(address, chip.memory.len(), size)?;
+    // store bytes, first element has lsb, value is zero extended
+    let mut bytes: [u8; 4] = [0, 0, 0, 0];
+    for i in 0..size.bytes() {
+        // store least significant bits first
+        bytes[i] = chip.memory[address + i];
+    }
+    chip.R[rt as usize] = u32::from_le_bytes(bytes);
+    Ok(())
 }

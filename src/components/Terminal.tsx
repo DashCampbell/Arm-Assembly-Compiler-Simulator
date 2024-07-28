@@ -2,7 +2,16 @@ import { useAssemblySource } from "@/context/AssemblyContext";
 
 export default function Terminal() {
     const { std_out } = useAssemblySource();
-
+    const addLineBreak = (str: string) => (
+        str.split('\n').map((subStr, i, lines) => {
+            return (
+                <>
+                    {subStr}
+                    {(i == lines.length - 1) ? null : <br />}
+                </>
+            );
+        })
+    );
     return (
         <div id="terminal" className="p-2 bg-zinc-700">
             {/* Standard Output */}
@@ -18,7 +27,7 @@ export default function Terminal() {
                         case "red":
                             return <p key={i} className="text-red-500 font-bold">{out.message}</p>
                         default:
-                            return <p key={i}>{out.message}</p>
+                            return <p key={i}>{addLineBreak(out.message)}</p>
                     }
                 })}
             </div>
