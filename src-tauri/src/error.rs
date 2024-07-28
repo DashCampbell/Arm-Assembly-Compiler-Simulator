@@ -26,6 +26,9 @@ impl CompileErr {
             Err(self.errors)
         }
     }
+    pub fn print(&self) {
+        println!("{:?}", self.errors);
+    }
     /// For returning the current list of compile errors early
     pub fn early_return(self) -> Result<(), Vec<String>> {
         Err(self.errors)
@@ -182,6 +185,12 @@ impl InstructionCompileErr {
     pub fn check_sp_or_pc(&mut self, r: u8, reg: &str) {
         self.check_pc(r, reg);
         self.check_sp(r, reg);
+    }
+    pub fn invalid_label(label: &str) -> Vec<String> {
+        vec![format!(
+            "Label \"{}\" does not point to a string variable.",
+            label
+        )]
     }
     /// Pushes error message when S extension is not allowed
     pub fn invalid_s_extension(&mut self, s: bool) {

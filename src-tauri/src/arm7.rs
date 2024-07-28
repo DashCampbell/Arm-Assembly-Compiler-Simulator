@@ -235,6 +235,10 @@ pub enum Operands {
         Rt: u8,
         label: usize,
     },
+    Rt_imm {
+        Rt: u8,
+        label: u32,
+    },
 }
 impl Operands {
     pub fn is_memory_operands(line: &str) -> Result<Self, Vec<String>> {
@@ -324,6 +328,11 @@ impl FromStr for Operands {
             Ok(Self::Rt_label {
                 Rt: args[0] as u8,
                 label: 0,
+            })
+        } else if hp::is_Rt_equal_immed(line) {
+            Ok(Self::Rt_imm {
+                Rt: args[0] as u8,
+                label: args[1],
             })
         } else {
             Err(error::invalid_args(line))
@@ -598,7 +607,8 @@ impl Program {
         match operands {
             Operands::Rt_Rn_imm { .. }
             | Operands::Rt_Rn_imm_post { .. }
-            | Operands::Rt_Rn_imm_pre { .. } => (),
+            | Operands::Rt_Rn_imm_pre { .. }
+            | Operands::Rt_imm { .. } => (),
             Operands::Rt_Rn_Rm { shift, .. } => {
                 errors.check_mem_left_shift(shift);
             }
@@ -607,7 +617,9 @@ impl Program {
                 let label = Regex::new(r"\w+$").unwrap().find(line).unwrap().as_str();
                 return Ok(Operands::Rt_label {
                     Rt,
-                    label: *string_labels.get(label).unwrap(),
+                    label: *string_labels
+                        .get(label)
+                        .ok_or(InstructionCompileErr::invalid_label(label))?,
                 });
             }
             _ => return Err(error::invalid_args(line)),
@@ -636,7 +648,7 @@ impl Program {
         // push compiled line onto instruction stack. Returns compile errors if any.
         let operands = if mnemonic == "b" || mnemonic == "bl" {
             // compile branch instructions separately.
-            self.compile_branch_instruction(&extension, line, &labels)?
+            self.compile_branch_instruction(&extension, line, labels)?
         } else if mnemonic == "ldr" {
             self.compile_ldr_instruction(&extension, line, string_labels)?
         } else {
@@ -703,6 +715,9 @@ impl Program {
                 match line.operands {
                     Operands::Rt_label { Rt, label } => {
                         processor.R[Rt as usize] = label as u32;
+                    }
+                    Operands::Rt_imm { Rt, label } => {
+                        processor.R[Rt as usize] = label;
                     }
                     _ => {
                         hp::load_bytes(&line.operands, processor, MemSize::WORD).map_err(|err| {

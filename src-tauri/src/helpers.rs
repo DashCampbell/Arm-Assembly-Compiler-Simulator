@@ -27,6 +27,9 @@ pub fn u_number() -> &'static str {
 pub fn i_number() -> &'static str {
     r"\s*#-?(0b[01]+|0x[A-Fa-f\d]+|\d+)\s*"
 }
+pub fn re_label() -> &'static str {
+    r"\s*[a-zA-Z_]\w*\s*"
+}
 pub fn is_bin(num: &str) -> bool {
     Regex::new(r"^#-?0b[01]+$").unwrap().is_match(num)
 }
@@ -231,14 +234,23 @@ pub fn is_Rt_Rn_Rm_shift(line: &str) -> bool {
 #[allow(non_snake_case)]
 /// ldr rt ,= <label>
 pub fn is_Rt_equal_label(line: &str) -> bool {
-    Regex::new(format!(r"^\S+{},=\s*\S+\s*$", register(),).as_str())
+    Regex::new(format!(r"^\S+{},={}$", register(), re_label()).as_str())
+        .unwrap()
+        .is_match(line)
+}
+#[allow(non_snake_case)]
+/// ldr rt ,= imm32
+pub fn is_Rt_equal_immed(line: &str) -> bool {
+    Regex::new(format!(r"^\S+{},={}*$", register(), i_number()).as_str())
         .unwrap()
         .is_match(line)
 }
 
 /// Determines if line is in the format "mnemonic<extensions> <label>"
 pub fn is_label(line: &str) -> bool {
-    Regex::new(r"^\S+\s+\w+$").unwrap().is_match(line)
+    Regex::new(format!(r"^\S+{}$", re_label()).as_str())
+        .unwrap()
+        .is_match(line)
 }
 
 fn get_rt_and_address(operands: &Operands, chip: &mut Processor) -> Result<(u8, u32), String> {
