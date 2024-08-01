@@ -8,7 +8,7 @@ export default function MemoryArea() {
     const errorElement = useRef<HTMLParagraphElement | null>(null);
 
     const format = useRef<HTMLSelectElement | null>(null);
-    const { memory } = useAssemblySource();
+    const { memory, memory_format } = useAssemblySource();
 
 
     // https://stackoverflow.com/questions/57803/how-to-convert-decimal-to-hexadecimal-in-javascript
@@ -58,11 +58,12 @@ export default function MemoryArea() {
         }
     };
     const updateMemory = () => {
-        invoke<[string[], number]>('display_Memory', { num_format: format?.current?.value }).then(([ram, sp]) => {
-            memory.set_format(format?.current?.value ?? '');
-            memory.update_memory(ram.reverse(), sp);
-        });
-
+        if (format?.current?.value ?? '' !== memory_format.current) {
+            memory_format.current = format?.current?.value ?? '';
+            invoke<[string[], number]>('display_Memory', { num_format: memory_format.current }).then(([ram, sp]) => {
+                memory.update_memory(ram.reverse(), sp);
+            });
+        }
     }
     return (
         <div id="memory-area" className="bg-darken text-white">

@@ -1,7 +1,9 @@
-import { useAssemblySource } from "@/context/AssemblyContext";
+import { DebugStatus, useAssemblySource } from "@/context/AssemblyContext";
+import { KeyboardEvent, useRef } from "react";
 
 export default function Terminal() {
-    const { std_out } = useAssemblySource();
+    const { std_out, push_std_out, debug_status, set_debug_status } = useAssemblySource();
+    const input_text = useRef<string>('');
     const addLineBreak = (str: string) => (
         str.split('\n').map((subStr, i, lines) => {
             return (
@@ -12,6 +14,11 @@ export default function Terminal() {
             );
         })
     );
+    const handleEnter = (ev: KeyboardEvent) => {
+        if (ev.key === 'Enter' && (debug_status === DebugStatus.INPUT_CONTINUE || debug_status === DebugStatus.INPUT_STEP)) {
+            push_std_out('text', input_text.current);
+        }
+    };
     return (
         <div id="terminal" className="p-2 bg-zinc-700">
             {/* Standard Output */}
@@ -33,11 +40,8 @@ export default function Terminal() {
             </div>
             {/* Standard Input */}
             <div id="terminal-input" className="py-1 px-6 bg-zinc-600">
-                {/* <form action=""> */}
                 <span className="text-gray bg-white inline-block pl-2 pr-3 py-1">{">>"}</span>
-                <input type="text" placeholder="user input...." className="py-1 w-2/5 focus:outline-none" />
-                {/* <input type="submit" hidden/> */}
-                {/* </form> */}
+                <input type="text" onKeyUp={handleEnter} onChange={e => input_text.current = e.target.value} placeholder="enter user input...." className="px-2 py-1 w-2/5 bg-slate-100 focus:bg-white" />
             </div>
         </div>
     )

@@ -54,6 +54,7 @@ pub enum Label {
     CR,
     VALUE,
     PRINTF,
+    PRINTCHAR,
     GetChar,
     GetNumber,
 }
@@ -64,6 +65,7 @@ impl FromStr for Label {
         match label {
             "cr" => Ok(Self::CR),
             "value" => Ok(Self::VALUE),
+            "printchar" => Ok(Self::PRINTCHAR),
             "getchar" => Ok(Self::GetChar),
             "getnumber" => Ok(Self::GetNumber),
             "printf" => Ok(Self::PRINTF),
@@ -701,10 +703,16 @@ impl Program {
                         Label::VALUE => {
                             std_out = format!("{}{}", std_out, processor.R[0] as i32);
                         }
+                        Label::PRINTCHAR => {
+                            match char::from_u32(processor.R[0]) {
+                                Some(c) => std_out = format!("{}{}", std_out, c),
+                                None => std_out = format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
+                            }
+                        }
                         Label::PRINTF => {
                             std_out = format!(
                                 "{}{}",
-                                std_out, self.string_messages.get(processor.R[0] as usize).ok_or_else(|| format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
+                                std_out, self.string_messages.get(processor.R[0] as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
                             );
                         }
                         _ => (),

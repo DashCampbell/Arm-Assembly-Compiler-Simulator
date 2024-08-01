@@ -7,7 +7,7 @@ interface OpenedFile {
     bSave: boolean; // True - Display save icon, False - File is saved and not changed
     breakpoints: number[];
 }
-interface ISourceContext {
+export interface ISourceContext {
     selected: string;   // file id
     setSelect: (id: string) => void;
     opened: OpenedFile[];   // list of opened file id's

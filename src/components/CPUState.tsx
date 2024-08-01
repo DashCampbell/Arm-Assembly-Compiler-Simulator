@@ -10,17 +10,19 @@ interface CPU {
     V: boolean;
 }
 export default function CPUState() {
-    const { cpu } = useAssemblySource();
+    const { cpu, cpu_format } = useAssemblySource();
     const format = useRef<HTMLSelectElement | null>(null);
 
     const aspr_active = (active: boolean) => (
         active ? "text-gray-800" : "text-zinc-200"
     );
     const update_cpu = () => {
-        invoke<CPU>('display_CPU', { num_format: format?.current?.value ?? '' }).then(res => {
-            cpu.set_format(format?.current?.value ?? '');
-            cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
-        });
+        if (format?.current?.value ?? '' !== cpu_format.current) {
+            cpu_format.current = format?.current?.value ?? '';
+            invoke<CPU>('display_CPU', { num_format: cpu_format.current }).then(res => {
+                cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
+            });
+        }
     }
     return (
         <div id="CPU" className="text-white px-2 py-3 overflow-scroll text">

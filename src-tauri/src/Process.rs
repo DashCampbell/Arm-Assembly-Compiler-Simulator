@@ -47,8 +47,9 @@ pub async fn compile(
     let mut pc = 0usize;
     // Stores all compile time errors
     let mut errors = CompileErr::new();
-
+    // Stores all local and global labels
     let mut labels = Labels::get_global_labels(&config)?;
+    // Stores labels that refer to a string variable. *string variables are stored in a vector that is needed at runtime.
     let mut string_labels: HashMap<String, usize> = HashMap::new();
 
     // Compile each file
