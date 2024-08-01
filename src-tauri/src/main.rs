@@ -1,21 +1,11 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod Process;
-mod arm7;
-mod error;
-mod fc;
-mod helpers;
-mod instructions;
-
-use fc::Folder;
+use app::arm7::{Processor, Program};
+use app::backend_api;
+use app::backend_api::{GlobalKillSwitch, GlobalProcessor, GlobalProgram};
+use app::fc::Folder;
 use std::sync::Mutex;
-use Process::GlobalKillSwitch;
-
-use arm7::Processor;
-use arm7::Program;
-use Process::GlobalProcessor;
-use Process::GlobalProgram;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -24,17 +14,17 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn open_folder(folder_path: &str) -> Result<Folder, ()> {
-    Ok(fc::read_directory(folder_path))
+    Ok(app::fc::read_directory(folder_path))
 }
 
 #[tauri::command]
 fn get_file_content(file_path: &str) -> Result<String, String> {
-    fc::read_file(file_path)
+    app::fc::read_file(file_path)
 }
 
 #[tauri::command]
 fn write_file(file_path: &str, content: &str) -> String {
-    fc::write_file(file_path, content);
+    app::fc::write_file(file_path, content);
     String::from("OK")
 }
 
@@ -49,12 +39,12 @@ fn main() {
             open_folder,
             get_file_content,
             write_file,
-            Process::compile,
-            Process::run,
-            Process::debug_run,
-            Process::display_CPU,
-            Process::display_Memory,
-            Process::kill_process,
+            backend_api::compile,
+            backend_api::run,
+            backend_api::debug_run,
+            backend_api::display_cpu,
+            backend_api::display_memory,
+            backend_api::kill_process,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

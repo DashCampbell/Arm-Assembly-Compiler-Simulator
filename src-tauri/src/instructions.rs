@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::arm7::{Label, MemSize, MnemonicExtension, Operands, Processor};
 use crate::error::InstructionCompileErr;
 use crate::error::{self};
-use crate::helpers as hp;
+use crate::utils as hp;
 
 /// Returns a Hashmap for all instructions, the key is the instruction's mnemonic
 pub fn all_instructions() -> HashMap<String, Box<dyn Instruction>> {

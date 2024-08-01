@@ -1,14 +1,14 @@
-mod Process;
-mod arm7;
-mod error;
-mod fc;
-mod helpers;
-mod instructions;
+pub mod arm7;
+pub mod backend_api;
+pub mod error;
+pub mod fc;
+pub mod instructions;
+pub mod utils;
 
 #[cfg(test)]
 mod tests {
     use super::arm7::*;
-    use crate::helpers as hp;
+    use super::utils as hp;
     use regex::Regex;
 
     const MOV: MOV = MOV {};

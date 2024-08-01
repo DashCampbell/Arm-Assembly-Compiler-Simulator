@@ -82,7 +82,7 @@ pub async fn compile(
                 continue;
             }
             // Handle IT statement
-            if compile::is_IT_statement(&line) {
+            if compile::is_if_then_block(&line) {
                 errors = errors.handle_it_instruction(&mut it_block, line)?;
             }
             // Handle other instructions.
@@ -166,7 +166,7 @@ pub async fn kill_process(kill_switch: State<'_, GlobalKillSwitch>) -> Result<()
 
 #[tauri::command(rename_all = "snake_case")]
 /// Sends CPU data to Frontend
-pub async fn display_CPU(
+pub async fn display_cpu(
     processor: State<'_, GlobalProcessor>,
     num_format: String,
 ) -> Result<CPU, ()> {
@@ -182,14 +182,20 @@ pub async fn display_CPU(
         "hexadecimal" => |r| format!("{:#010x}", r),
         _ => |r| format!("{}", r), // default is unsigned u32
     };
-    let R: Vec<String> = processor.R.into_iter().map(formatter).collect();
-    let (N, Z, C, V) = (processor.N, processor.Z, processor.C, processor.V);
-    Ok(CPU { R, N, Z, C, V })
+    let registers: Vec<String> = processor.R.into_iter().map(formatter).collect();
+    let (n, z, c, v) = (processor.N, processor.Z, processor.C, processor.V);
+    Ok(CPU {
+        R: registers,
+        N: n,
+        Z: z,
+        C: c,
+        V: v,
+    })
 }
 
 #[tauri::command(rename_all = "snake_case")]
 /// Sends Memory data to Frontend
-pub async fn display_Memory(
+pub async fn display_memory(
     processor: State<'_, GlobalProcessor>,
     num_format: String,
 ) -> Result<(Vec<String>, u32), ()> {
@@ -287,7 +293,7 @@ pub mod compile {
         let (line, _) = line.split_once("//").unwrap_or((line, "")); // Remove comments at the end of a line
         line.trim() // trim white space
     }
-    pub fn is_IT_statement(line: &str) -> bool {
+    pub fn is_if_then_block(line: &str) -> bool {
         Regex::new(r"^it[te]*\s+\w+$").unwrap().is_match(line)
     }
 }

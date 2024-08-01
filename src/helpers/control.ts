@@ -43,10 +43,10 @@ export const handleRun = (source: ISourceContext, ass_source: IAssemblyContext) 
                 })
                 .finally(() => {
                     // Update Terminal, CPU, and Memory data
-                    invoke<CPU>('display_CPU', { num_format: cpu_format.current }).then(newCPU => {
+                    invoke<CPU>('display_cpu', { num_format: cpu_format.current }).then(newCPU => {
                         cpu.update_cpu(newCPU.R, newCPU.N, newCPU.Z, newCPU.C, newCPU.V);
                     });
-                    invoke<[string[], number]>('display_Memory', { num_format: memory_format.current }).then(([ram, sp]) => {
+                    invoke<[string[], number]>('display_memory', { num_format: memory_format.current }).then(([ram, sp]) => {
                         memory.update_memory(ram.reverse(), sp);
                     });
                     // Deactivate Toolbar Buttons
@@ -106,10 +106,10 @@ const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext):
     }).finally(async () => {
         // Update Terminal, CPU, and Memory data
         // wait until frontend updates, before running next assembly instruction.
-        await invoke<CPU>('display_CPU', { num_format: cpu_format.current }).then(res => {
+        await invoke<CPU>('display_cpu', { num_format: cpu_format.current }).then(res => {
             cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
         });
-        await invoke<[string[], number]>('display_Memory', { num_format: memory_format.current }).then(([ram, sp]) => {
+        await invoke<[string[], number]>('display_memory', { num_format: memory_format.current }).then(([ram, sp]) => {
             memory.update_memory(ram.reverse(), sp);
         });
     });

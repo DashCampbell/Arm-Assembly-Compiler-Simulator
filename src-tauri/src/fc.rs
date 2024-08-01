@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
-use std::ffi::OsString;
 use std::fs;
-use std::result;
 use std::path::Path;
+use std::result;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FileInfo {
@@ -24,14 +23,13 @@ pub struct Post {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Folder {
     files: String,
-    folder: String
+    folder: String,
 }
-
 
 /// Returns JSON string of data
 pub fn read_directory(dir_path: &str) -> Folder {
     let new_path = Path::new(dir_path);
-    let paths = fs::read_dir(new_path).unwrap();    // files & folders
+    let paths = fs::read_dir(new_path).unwrap(); // files & folders
     println!("new path {:?}", new_path);
 
     let mut files: Vec<FileInfo> = Vec::new();
@@ -55,7 +53,10 @@ pub fn read_directory(dir_path: &str) -> Folder {
         Ok(str) => str,
         Err(error) => panic!("Problem opening the file: {:?}", error),
     };
-    Folder {files: files_str, folder: new_path.file_name().unwrap().to_str().unwrap().into()}
+    Folder {
+        files: files_str,
+        folder: new_path.file_name().unwrap().to_str().unwrap().into(),
+    }
 }
 
 /// Returns the contents of the file.
@@ -66,7 +67,12 @@ pub fn read_file(path: &str) -> result::Result<String, String> {
         Err(_) => {
             eprintln!("Error reading: {}", path);
             let path = Path::new(path);
-            return Err(path.file_name().unwrap().to_str().unwrap_or("Can't read file name.").to_string());
+            return Err(path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap_or("Can't read file name.")
+                .to_string());
         }
     }
 }

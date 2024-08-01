@@ -4,9 +4,9 @@ use tauri::State;
 
 pub use crate::instructions::*;
 use crate::{
+    backend_api::{compile, GlobalKillSwitch, GlobalProcessor},
     error::{self, CompileErr, InstructionCompileErr},
-    helpers as hp,
-    Process::{compile, GlobalKillSwitch, GlobalProcessor},
+    utils as hp,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,12 +27,13 @@ impl MemSize {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Shifts applied to registers. Shifts an element by k bits, k should be <= 32.
+/// TODO: Use this enum
 pub enum Shift {
-    LSL(u8),
-    LSR(u8),
-    ASR(u8),
-    ROR(u8),
-    RRX,
+    // LSL(u8),
+    // LSR(u8),
+    // ASR(u8),
+    // ROR(u8),
+    // RRX,
 }
 
 #[derive(Debug, PartialEq)]
@@ -831,10 +832,10 @@ pub struct Processor {
 impl Processor {
     pub fn new() -> Self {
         // full descending stack
-        let mut R = [0; 16];
-        R[13] = 1023;
+        let mut registers = [0; 16];
+        registers[13] = 1023;
         Processor {
-            R,
+            R: registers,
             N: false,
             Z: false,
             C: false,

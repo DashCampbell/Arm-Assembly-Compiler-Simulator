@@ -19,7 +19,7 @@ export default function CPUState() {
     const update_cpu = () => {
         if (format?.current?.value ?? '' !== cpu_format.current) {
             cpu_format.current = format?.current?.value ?? '';
-            invoke<CPU>('display_CPU', { num_format: cpu_format.current }).then(res => {
+            invoke<CPU>('display_cpu', { num_format: cpu_format.current }).then(res => {
                 cpu.update_cpu(res.R, res.N, res.Z, res.C, res.V);
             });
         }

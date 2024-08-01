@@ -60,7 +60,7 @@ export default function MemoryArea() {
     const updateMemory = () => {
         if (format?.current?.value ?? '' !== memory_format.current) {
             memory_format.current = format?.current?.value ?? '';
-            invoke<[string[], number]>('display_Memory', { num_format: memory_format.current }).then(([ram, sp]) => {
+            invoke<[string[], number]>('display_memory', { num_format: memory_format.current }).then(([ram, sp]) => {
                 memory.update_memory(ram.reverse(), sp);
             });
         }
