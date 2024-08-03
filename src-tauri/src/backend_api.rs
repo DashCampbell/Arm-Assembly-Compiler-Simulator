@@ -70,7 +70,8 @@ pub async fn compile(
         // Parse instructions
         for (line_number, line) in file_content.lines().enumerate() {
             let line_number = line_number + 1; // offset line number by one
-            let line = compile::preprocess_line(line).to_lowercase();
+            let original_line = compile::preprocess_line(line);
+            let line = original_line.to_lowercase(); // set entire line to lowercase for easier parsing
             let is_breakpoint = breakpoint_map.as_ref().map_or(false, |map| {
                 map.get(file_name.as_str())
                     .map_or(false, |list| list.contains(&line_number))
@@ -91,11 +92,12 @@ pub async fn compile(
                 extension.it_status = errors.get_it_status(&mut it_block, extension.cc);
                 // return any compile time errors for this instruction.
                 if let Err(err) = program.compile_instruction(
-                    &mnemonic,
+                    mnemonic,
                     file_name,
                     line_number,
                     extension,
                     is_breakpoint,
+                    original_line,
                     &line,
                     &labels,
                     &string_labels,

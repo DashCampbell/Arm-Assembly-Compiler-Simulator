@@ -135,7 +135,9 @@ impl Labels {
         let re_label = Regex::new(r"^[a-zA-Z_]+\w*\s*:$").unwrap();
         let mut local_labels: HashMap<String, usize> = HashMap::new();
         let mut last_label: Option<String> = None;
+        // stores a list of string variables
         let mut strings: Vec<String> = Vec::new();
+        // key -> label, value -> label's index in list of string variables
         let mut string_labels: HashMap<String, usize> = HashMap::new();
 
         for (line_number, line) in file_content.lines().enumerate() {
@@ -509,7 +511,7 @@ impl Program {
     /// Pushes a new compiled line.
     fn push_line(
         &mut self,
-        mnemonic: &String,
+        mnemonic: String,
         file_name: &String,
         line_number: usize,
         extension: MnemonicExtension,
@@ -517,7 +519,7 @@ impl Program {
         operands: Operands,
     ) {
         self.lines.push(Line::new(
-            mnemonic.clone(),
+            mnemonic,
             file_name.clone(),
             line_number,
             extension,
@@ -577,7 +579,7 @@ impl Program {
     fn compile_branch_instruction(
         &mut self,
         extension: &MnemonicExtension,
-        line: &String,
+        line: &str,
         labels: &Labels,
     ) -> Result<Operands, Vec<String>> {
         if extension.s {
@@ -601,7 +603,7 @@ impl Program {
     fn compile_ldr_instruction(
         &mut self,
         _extension: &MnemonicExtension,
-        line: &String,
+        line: &str,
         string_labels: &HashMap<String, usize>,
     ) -> Result<Operands, Vec<String>> {
         let mut errors = InstructionCompileErr::new();
@@ -633,11 +635,12 @@ impl Program {
     /// Returns compile time errors, if instruction is invalid.
     pub fn compile_instruction(
         &mut self,
-        mnemonic: &String,
+        mnemonic: String,
         file_name: &String,
         line_number: usize,
         extension: MnemonicExtension,
         is_breakpoint: bool,
+        original_line: &str,
         line: &String,
         labels: &Labels,
         string_labels: &HashMap<String, usize>,
@@ -645,15 +648,15 @@ impl Program {
         // get instruction
         let instruction = self
             .instructions
-            .get(mnemonic)
+            .get(&mnemonic)
             .expect("mnemonic should be valid.");
 
         // push compiled line onto instruction stack. Returns compile errors if any.
         let operands = if mnemonic == "b" || mnemonic == "bl" {
             // compile branch instructions separately.
-            self.compile_branch_instruction(&extension, line, labels)?
+            self.compile_branch_instruction(&extension, original_line, labels)?
         } else if mnemonic == "ldr" {
-            self.compile_ldr_instruction(&extension, line, string_labels)?
+            self.compile_ldr_instruction(&extension, original_line, string_labels)?
         } else {
             instruction.get_operands(&extension, line)?
         };
@@ -705,9 +708,9 @@ impl Program {
                             std_out = format!("{}{}", std_out, processor.R[0] as i32);
                         }
                         Label::PRINTCHAR => {
-                            match char::from_u32(processor.R[0]) {
-                                Some(c) => std_out = format!("{}{}", std_out, c),
-                                None => std_out = format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
+                            std_out = match char::from_u32(processor.R[0]) {
+                                Some(c) => format!("{}{}", std_out, c),
+                                None => format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
                             }
                         }
                         Label::PRINTF => {
@@ -716,31 +719,19 @@ impl Program {
                                 std_out, self.string_messages.get(processor.R[0] as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
                             );
                         }
+                        Label::GetNumber => {
+                            
+                        }
                         _ => (),
                     },
                     _ => (),
                 }
-            } else if line.mnemonic == "ldr" {
-                match line.operands {
-                    Operands::Rt_label { Rt, label } => {
-                        processor.R[Rt as usize] = label as u32;
-                    }
-                    Operands::Rt_imm { Rt, label } => {
-                        processor.R[Rt as usize] = label;
-                    }
-                    _ => {
-                        hp::load_bytes(&line.operands, processor, MemSize::WORD).map_err(|err| {
-                            format!("\"{}\" line {}: {}", line.file_name, line.line_number, err)
-                        })?
-                    }
-                }
-            } else {
-                instruction
-                    .execute(line.extension.s, &line.operands, processor)
-                    .map_err(|err| {
-                        format!("\"{}\" line {}: {}", line.file_name, line.line_number, err)
-                    })?;
             }
+            instruction
+                .execute(line.extension.s, &line.operands, processor)
+                .map_err(|err| {
+                    format!("\"{}\" line {}: {}", line.file_name, line.line_number, err)
+                })?;
 
             // shutdown program if Stop button was pressed.
             let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");

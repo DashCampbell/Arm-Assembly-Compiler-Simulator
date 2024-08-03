@@ -13,6 +13,7 @@ fn register() -> &'static str {
     r"\s*(r\d+|sp|lr|pc)\s*"
 }
 
+#[warn(dead_code)]
 fn mnemonic_extension() -> &'static str {
     r"s?(eq|ne|cs|hs|cc|lo|mi|pl|vs|vc|hi|ls|ge|lt|gt|le|al)?(.w)?"
 }

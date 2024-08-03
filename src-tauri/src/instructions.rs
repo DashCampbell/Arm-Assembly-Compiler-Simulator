@@ -417,6 +417,16 @@ impl Instruction for LDR {
         operands: &Operands,
         chip: &mut Processor,
     ) -> Result<(), String> {
-        hp::load_bytes(operands, chip, MemSize::WORD)
+        match *operands {
+            Operands::Rt_label { Rt, label } => {
+                chip.R[Rt as usize] = label as u32;
+                Ok(())
+            }
+            Operands::Rt_imm { Rt, label } => {
+                chip.R[Rt as usize] = label;
+                Ok(())
+            }
+            _ => hp::load_bytes(operands, chip, MemSize::WORD),
+        }
     }
 }
