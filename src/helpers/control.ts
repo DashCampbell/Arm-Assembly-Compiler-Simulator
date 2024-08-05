@@ -1,4 +1,4 @@
-import { CPU, DebugStatus, IAssemblyContext } from "@/context/AssemblyContext";
+import { CPU, DebugStatus, IAssemblyContext, InputStatus } from "@/context/AssemblyContext";
 import { ISourceContext } from "@/context/SourceContext";
 import { getFileFromName, getFileObject } from "@/stores/files";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -31,11 +31,12 @@ export const handleRun = (source: ISourceContext, ass_source: IAssemblyContext) 
             push_std_out("run", "Running...");
             toolbar_btn.setRunningMode();
 
-            invoke<string | null>('run')
-                .then((res) => {
-                    if (res)
-                        push_std_out("text", res);
+            invoke<[string, InputStatus]>('run')
+                .then(([std_out, input_status]) => {
+                    push_std_out("text", std_out);
                     push_std_out("run", "Finished Running");
+                    let status: InputStatus = input_status;
+                    console.log(status);
                 })
                 .catch(err => {
                     push_std_out("red", "Runtime Error:");

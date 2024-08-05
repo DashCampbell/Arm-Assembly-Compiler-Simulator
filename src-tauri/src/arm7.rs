@@ -48,6 +48,12 @@ pub enum DebugStatus {
     CONTINUE,
     BREAKPOINT,
 }
+#[derive(Debug, PartialEq, serde::Serialize)]
+pub enum InputStatus {
+    GetChar,
+    GetNumber,
+    None,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Label {
@@ -677,7 +683,7 @@ impl Program {
         &self,
         processor: &mut Processor,
         shutdown: State<'_, GlobalKillSwitch>,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<(String, InputStatus), String> {
         // Starting at the PC index.
         let mut std_out = String::new();
 
@@ -720,9 +726,12 @@ impl Program {
                             );
                         }
                         Label::GetNumber => {
-                            
+                            return Ok((std_out, InputStatus::GetNumber));
                         }
-                        _ => (),
+                        Label::GetChar => {
+                            return Ok((std_out, InputStatus::GetChar));
+                        }
+                        Label::Index(_) => {}    // covered in execution function
                     },
                     _ => (),
                 }
@@ -741,7 +750,7 @@ impl Program {
                 break;
             }
         }
-        Ok(Some(std_out))
+        Ok((std_out, InputStatus::None))
     }
     /// Debug compiled assembly instuctions
     /// If Ok, returns (current file name, current line number, standard output, and debug status)

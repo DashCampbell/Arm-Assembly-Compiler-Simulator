@@ -1,6 +1,6 @@
 import { useAssemblySource } from "@/context/AssemblyContext";
 import { invoke } from "@tauri-apps/api/tauri";
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, Fragment } from "react"
 
 interface CPU {
     R: string[];
@@ -34,9 +34,11 @@ export default function CPUState() {
                 <option value="hexadecimal">Hexadecimal</option>
             </select>
             <div>
-                {[...Array(13)].map((_v, i) => (
-                    <><span key={i}>R{i}: </span><span key={i + 13}>{cpu.R[i]}</span></>
-                ))}
+                {[...Array(13)].map((_, i) =>
+                    <Fragment key={i}>
+                        <span>R{i}: </span><span>{cpu.R[i]}</span>
+                    </Fragment>
+                )}
                 <span>SP: </span><span>{cpu.R[13]}</span>
                 <span>LR: </span><span>{cpu.R[14]}</span>
                 <span>PC: </span><span>{cpu.R[15]}</span>

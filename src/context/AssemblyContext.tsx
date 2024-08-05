@@ -36,15 +36,17 @@ export interface Memory {
     SP: number;
     update_memory: (memory: string[], SP: number) => void;
 }
+export enum InputStatus {
+    GetChar,
+    GetNumber,
+    None,
+}
 export enum DebugStatus {
     RUNNING = 'RUNNING',
     CONTINUE = 'CONTINUE',
     STEP = 'STEP',
     BREAKPOINT = 'BREAKPOINT',
     END = 'END',
-    INPUT_RUN = 'INPUT_RUN',
-    INPUT_CONTINUE = 'INPUT_CONTINUE',
-    INPUT_STEP = 'INPUT_STEP',
 }
 
 export interface IAssemblyContext {

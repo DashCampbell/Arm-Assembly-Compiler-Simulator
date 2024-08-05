@@ -1,6 +1,6 @@
 import { useAssemblySource } from "@/context/AssemblyContext";
 import { invoke } from "@tauri-apps/api/tauri";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 export default function MemoryArea() {
     const location = useRef<any | null>(null);
@@ -89,14 +89,14 @@ export default function MemoryArea() {
                 <span className="sticky top-0">address</span>
                 {/* full descending stack */}
                 {memory.memory.map((byte, i) => (
-                    <>
-                        <span className={"memory-byte" + ((memory.memory.length - i - 1) == memory.SP ? " bg-purple-500" : " bg-[#81898e]")} key={i}>{byte}</span>
+                    <Fragment key={i}>
+                        <span className={"memory-byte" + ((memory.memory.length - i - 1) == memory.SP ? " bg-purple-500" : " bg-[#81898e]")}>{byte}</span>
                         {
                             (i + 1) % 4 == 0 ?
                                 <span>{decimalToHex(memory.memory.length - i - 1, 8)}</span> :
                                 null
                         }
-                    </>
+                    </Fragment>
                 ))}
             </div>
         </div>

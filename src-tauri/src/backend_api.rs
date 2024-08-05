@@ -1,5 +1,5 @@
 // For Compiling, Running, and Debugging assembly code.
-use crate::arm7::{ConditionCode, DebugStatus, Labels, Processor, Program};
+use crate::arm7::{ConditionCode, DebugStatus, InputStatus, Labels, Processor, Program};
 use crate::error::CompileErr;
 use compile::{Config, CPU};
 use regex::Regex;
@@ -123,7 +123,7 @@ pub async fn run(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
     kill_switch: State<'_, GlobalKillSwitch>,
-) -> Result<Option<String>, String> {
+) -> Result<(String, InputStatus), String> {
     // program is compiled and now immutable
     let program = program
         .0
