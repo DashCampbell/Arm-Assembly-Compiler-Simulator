@@ -9,11 +9,12 @@ export default function Terminal() {
     const { std_out, push_std_out, input_status, debug_status, toolbar_btn } = ass_source;
     const input_text = useRef<string>('');
     const addLineBreak = (str: string) => {
+        // console.table({ output: str, len: str.length });
         return str.split('\n').map((subStr, i, lines) => {
             return (
                 <Fragment key={subStr + i}>
                     {subStr}
-                    {(debug_status === DebugStatus.CONTINUE || debug_status === DebugStatus.STEP) ? null : (i == lines.length - 1) ? null : <br />}
+                    {(i == lines.length - 1) ? null : <br />}
                 </Fragment>
             );
         })
@@ -74,7 +75,7 @@ export default function Terminal() {
                         case "red":
                             return <p key={i} className="text-red-500 font-bold">{out.message}</p>
                         default:
-                            return <p key={i}>{addLineBreak(out.message)}</p>
+                            return <span key={i}>{addLineBreak(out.message)}</span>
                     }
                 })}
             </div>

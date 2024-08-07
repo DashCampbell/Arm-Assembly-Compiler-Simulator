@@ -759,7 +759,7 @@ impl Program {
 
         if (processor.R[15] as usize) >= self.lines.len() || *kill_switch {
             *kill_switch = false;
-            return Ok(("".into(), 0, DebugStatus::END, InputStatus::None, None));
+            return Ok((std_out, 0, DebugStatus::END, InputStatus::None, None));
         }
         // get the line to run
         let line = &self.lines[processor.R[15] as usize];
