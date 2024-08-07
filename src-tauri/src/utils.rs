@@ -1,5 +1,5 @@
 use crate::{
-    arm7::{MemSize, Operands, Processor},
+    arm7::{InputStatus, Label, MemSize, Operands, Processor},
     error,
 };
 use regex::Regex;
@@ -308,4 +308,45 @@ pub fn load_bytes(operands: &Operands, chip: &mut Processor, size: MemSize) -> R
     }
     chip.R[rt as usize] = u32::from_le_bytes(bytes);
     Ok(())
+}
+
+pub fn run_branch_instruction(
+    std_out: &mut String,
+    r0: u32,
+    operands: &Operands,
+    file_name: &str,
+    line_number: usize,
+    string_messages: &Vec<String>,
+) -> Result<Option<InputStatus>, String> {
+    match operands {
+        Operands::label { label } => match label {
+            Label::CR => {
+                *std_out += "\n";
+            }
+            Label::VALUE => {
+                *std_out = format!("{}{}", std_out, r0 as i32);
+            }
+            Label::PRINTCHAR => {
+                *std_out = match char::from_u32(r0) {
+                    Some(c) => format!("{}{}", std_out, c),
+                    None => format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
+                }
+            }
+            Label::PRINTF => {
+                *std_out = format!(
+                    "{}{}",
+                    std_out, string_messages.get(r0 as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", file_name, line_number))?
+                );
+            }
+            Label::GetNumber => {
+                return Ok(Some(InputStatus::GetNumber));
+            }
+            Label::GetChar => {
+                return Ok(Some(InputStatus::GetChar));
+            }
+            Label::Index(_) => {}    // covered in execution function
+        },
+        _ => (),
+    }
+    Ok(None)
 }

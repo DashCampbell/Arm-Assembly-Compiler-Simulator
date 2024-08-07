@@ -8,16 +8,16 @@ export default function Terminal() {
     const ass_source = useAssemblySource();
     const { std_out, push_std_out, input_status, debug_status, toolbar_btn } = ass_source;
     const input_text = useRef<string>('');
-    const addLineBreak = (str: string) => (
-        str.split('\n').map((subStr, i, lines) => {
+    const addLineBreak = (str: string) => {
+        return str.split('\n').map((subStr, i, lines) => {
             return (
                 <Fragment key={subStr + i}>
                     {subStr}
-                    {(i == lines.length - 1) ? null : <br />}
+                    {(debug_status === DebugStatus.CONTINUE || debug_status === DebugStatus.STEP) ? null : (i == lines.length - 1) ? null : <br />}
                 </Fragment>
             );
         })
-    );
+    };
     const handleEnter = (ev: KeyboardEvent) => {
         if (ev.key !== 'Enter' || input_status.current === InputStatus.None)
             return;
@@ -26,11 +26,13 @@ export default function Terminal() {
         let err: string | undefined = undefined;
 
         // validate input
+        if (input_text.current.length == 0) {
+            push_std_out('text', "No characters detected.");
+            return;
+        }
         if (input_status.current === InputStatus.GetChar) {
             if (input_text.current.length > 1)
                 err = "Too many characters detected.";
-            else if (input_text.current.length == 0)
-                err = "No characters detected.";
             else
                 input = input_text.current.charCodeAt(0);
         } else if (input_status.current === InputStatus.GetNumber) {

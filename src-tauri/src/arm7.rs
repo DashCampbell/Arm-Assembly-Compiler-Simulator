@@ -6,7 +6,7 @@ pub use crate::instructions::*;
 use crate::{
     backend_api::{compile, GlobalKillSwitch, GlobalProcessor},
     error::{self, CompileErr, InstructionCompileErr},
-    utils as hp,
+    utils,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -273,75 +273,75 @@ impl FromStr for Operands {
     type Err = Vec<String>;
 
     fn from_str(line: &str) -> Result<Self, Self::Err> {
-        let args = hp::get_all_numbers(line)?;
-        if hp::is_Rd_immed(line) {
+        let args = utils::get_all_numbers(line)?;
+        if utils::is_Rd_immed(line) {
             Ok(Self::Rd_immed {
                 Rd: args[0] as u8,
                 immed: args[1],
             })
-        } else if hp::is_Rd_Rm(line) {
+        } else if utils::is_Rd_Rm(line) {
             Ok(Self::Rd_Rm {
                 Rd: args[0] as u8,
                 Rm: args[1] as u8,
                 shift: None,
             })
-        } else if hp::is_Rd_Rn_immed(line) {
+        } else if utils::is_Rd_Rn_immed(line) {
             Ok(Self::Rd_Rn_immed {
                 Rd: args[0] as u8,
                 Rn: args[1] as u8,
                 immed: args[2],
             })
-        } else if hp::is_Rd_Rn_Rm(line) {
+        } else if utils::is_Rd_Rn_Rm(line) {
             Ok(Self::Rd_Rn_Rm {
                 Rd: args[0] as u8,
                 Rn: args[1] as u8,
                 Rm: args[2] as u8,
                 shift: None,
             })
-        } else if hp::is_Rt_Rn(line) {
+        } else if utils::is_Rt_Rn(line) {
             Ok(Self::Rt_Rn_imm {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 imm: None,
             })
-        } else if hp::is_Rt_Rn_imm(line) {
+        } else if utils::is_Rt_Rn_imm(line) {
             Ok(Self::Rt_Rn_imm {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 imm: Some(args[2] as i32),
             })
-        } else if hp::is_Rt_Rn_imm_post(line) {
+        } else if utils::is_Rt_Rn_imm_post(line) {
             Ok(Self::Rt_Rn_imm_post {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 imm: args[2] as i32,
             })
-        } else if hp::is_Rt_Rn_imm_pre(line) {
+        } else if utils::is_Rt_Rn_imm_pre(line) {
             Ok(Self::Rt_Rn_imm_pre {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 imm: args[2] as i32,
             })
-        } else if hp::is_Rt_Rn_Rm(line) {
+        } else if utils::is_Rt_Rn_Rm(line) {
             Ok(Self::Rt_Rn_Rm {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 Rm: args[2] as u8,
                 shift: None,
             })
-        } else if hp::is_Rt_Rn_Rm_shift(line) {
+        } else if utils::is_Rt_Rn_Rm_shift(line) {
             Ok(Self::Rt_Rn_Rm {
                 Rt: args[0] as u8,
                 Rn: args[1] as u8,
                 Rm: args[2] as u8,
                 shift: Some(args[3] as u8),
             })
-        } else if hp::is_Rt_equal_label(line) {
+        } else if utils::is_Rt_equal_label(line) {
             Ok(Self::Rt_label {
                 Rt: args[0] as u8,
                 label: 0,
             })
-        } else if hp::is_Rt_equal_immed(line) {
+        } else if utils::is_Rt_equal_immed(line) {
             Ok(Self::Rt_imm {
                 Rt: args[0] as u8,
                 label: args[1],
@@ -555,7 +555,7 @@ impl Program {
             }
         }
         // assume condition code extension
-        let re_cc = Regex::new(hp::condition_codes()).unwrap();
+        let re_cc = Regex::new(utils::condition_codes()).unwrap();
         let cc = &line[line.len() - 2..];
         if line.len() > 2 && re_cc.is_match(cc) {
             let line = &line[..line.len() - 2];
@@ -595,7 +595,7 @@ impl Program {
             ));
         }
         // push compiled line onto instruction stack. Returns compile errors if any.
-        if hp::is_label(line) {
+        if utils::is_label(line) {
             // get the string label
             let label = Regex::new(r"\w+$").unwrap().find(line).unwrap().as_str();
             // Validate label
@@ -706,35 +706,15 @@ impl Program {
             }
             // handle predefined subroutines
             if line.mnemonic == "b" || line.mnemonic == "bl" {
-                match line.operands {
-                    Operands::label { label } => match label {
-                        Label::CR => {
-                            std_out += "\n";
-                        }
-                        Label::VALUE => {
-                            std_out = format!("{}{}", std_out, processor.R[0] as i32);
-                        }
-                        Label::PRINTCHAR => {
-                            std_out = match char::from_u32(processor.R[0]) {
-                                Some(c) => format!("{}{}", std_out, c),
-                                None => format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
-                            }
-                        }
-                        Label::PRINTF => {
-                            std_out = format!(
-                                "{}{}",
-                                std_out, self.string_messages.get(processor.R[0] as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
-                            );
-                        }
-                        Label::GetNumber => {
-                            return Ok((std_out, InputStatus::GetNumber, DebugStatus::RUNNING));
-                        }
-                        Label::GetChar => {
-                            return Ok((std_out, InputStatus::GetChar, DebugStatus::RUNNING));
-                        }
-                        Label::Index(_) => {}    // covered in execution function
-                    },
-                    _ => (),
+                if let Some(input_status) = utils::run_branch_instruction(
+                    &mut std_out,
+                    processor.R[0],
+                    &line.operands,
+                    &line.file_name,
+                    line.line_number,
+                    &self.string_messages,
+                )? {
+                    return Ok((std_out, input_status, DebugStatus::RUNNING));
                 }
             }
             instruction
@@ -809,35 +789,21 @@ impl Program {
         // run line, if a run-time error occurs stop program.
         // handle predefined subroutines
         if line.mnemonic == "b" || line.mnemonic == "bl" {
-            match line.operands {
-                Operands::label { label } => match label {
-                    Label::CR => {
-                        std_out += "\n";
-                    }
-                    Label::VALUE => {
-                        std_out = format!("{}{}", std_out, processor.R[0] as i32);
-                    }
-                    Label::PRINTCHAR => {
-                        std_out = match char::from_u32(processor.R[0]) {
-                            Some(c) => format!("{}{}", std_out, c),
-                            None => format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
-                        }
-                    }
-                    Label::PRINTF => {
-                        std_out = format!(
-                            "{}{}",
-                            std_out, self.string_messages.get(processor.R[0] as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
-                        );
-                    }
-                    Label::GetNumber => {
-                        return Ok((line.file_name.clone(), line.line_number,  debug_status, InputStatus::GetNumber, None));
-                    }
-                    Label::GetChar => {
-                        return Ok((line.file_name.clone(), line.line_number,  debug_status, InputStatus::GetChar, None));
-                    }
-                    Label::Index(_) => {}    // covered in execution function
-                },
-                _ => (),
+            if let Some(input_status) = utils::run_branch_instruction(
+                &mut std_out,
+                processor.R[0],
+                &line.operands,
+                &line.file_name,
+                line.line_number,
+                &self.string_messages,
+            )? {
+                return Ok((
+                    line.file_name.clone(),
+                    line.line_number,
+                    debug_status,
+                    input_status,
+                    None,
+                ));
             }
         }
         instruction
