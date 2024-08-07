@@ -27,7 +27,7 @@ export default function Terminal() {
         let err: string | undefined = undefined;
 
         // validate input
-        if (input_text.current.length == 0) {
+        if (input_text.current.length === 0) {
             push_std_out('text', "No characters detected.");
             return;
         }
@@ -51,11 +51,13 @@ export default function Terminal() {
                 case DebugStatus.RUNNING:
                     handleRun(ass_source, input);
                     break;
-                case DebugStatus.CONTINUE:
+                case DebugStatus.STEP:
+                    toolbar_btn.setBreakpointMode();
+                    debug_step(source, ass_source, input);
+                    break
+                default:
                     debug_continue(source, ass_source, input);
                     break;
-                case DebugStatus.STEP:
-                    debug_step(source, ass_source, input);
             }
         }
         // push_std_out('text', input_text.current); // For debugging, comment after use

@@ -169,7 +169,7 @@ export const AssemblySourceProvider = ({ children }: { children: JSX.Element | J
         debug_status,
         set_debug_status,
         highlight_line,
-    }), [cpu, memory, std_out, toolbar_btn, debug_status, highlight_line]);
+    }), [cpu, memory, toolbar_btn, debug_status]);
 
     return (
         <AssemblyContext.Provider value={assemblyValues}>

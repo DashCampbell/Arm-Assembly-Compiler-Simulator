@@ -108,19 +108,19 @@ export const debug_step = async (source: ISourceContext, ass_source: IAssemblyCo
             addOpenedFile(file.id);
             setSelect(file.id);
         }
-        if (new_debug_status == DebugStatus.END || new_debug_status == DebugStatus.BREAKPOINT) {
+        if (new_input_status !== InputStatus.None) {
+            toolbar_btn.setRunningMode();
+        }
+        else if (new_debug_status == DebugStatus.END || new_debug_status == DebugStatus.BREAKPOINT) {
             set_debug_status(new_debug_status);
             stop = true;
             if (new_debug_status == DebugStatus.END) {
                 highlight_line.setLine('', 0);  // unhighlight line if program completed
                 toolbar_btn.setInactiveMode();
                 push_std_out("run", "Finished Debugging");
-            } else if (new_debug_status == DebugStatus.BREAKPOINT) {
+            } else {
                 toolbar_btn.setBreakpointMode();
             }
-        }
-        if (new_input_status !== InputStatus.None) {
-            toolbar_btn.setRunningMode();
         }
     }).catch(err => {
         push_std_out("error", err);
@@ -145,8 +145,12 @@ export const debug_step = async (source: ISourceContext, ass_source: IAssemblyCo
 export const debug_continue = async (source: ISourceContext, ass_source: IAssemblyContext, std_input?: number) => {
     let stop = false;
     const { input_status } = ass_source;
+    let i = 0;
     while (!stop && input_status.current === InputStatus.None) {
+        if (i > 0)
+            std_input = undefined;
         stop = await debug_step(source, ass_source, std_input);
+        i++;
     }
 };
 export const handleDebug = (source: ISourceContext, ass_source: IAssemblyContext) => {

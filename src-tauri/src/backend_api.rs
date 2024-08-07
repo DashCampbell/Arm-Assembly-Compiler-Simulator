@@ -141,7 +141,6 @@ pub async fn run(
         .expect("Failed to get processor in run function.");
     if let Some(input) = std_input {
         processor.R[0] = input as u32;
-        println!("{}", input);
     }
     program.run(&mut processor, kill_switch)
 }
