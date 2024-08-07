@@ -1,0 +1,7 @@
+{
+  "files": [
+    "main.s",
+    "other.s"
+  ],
+  "delay": 20
+}

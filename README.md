@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
-
+# ARMv7 Assembly IDE Emulator
+![alt text](image.png)
+A simple code editor that is able to run and debug Arm7 assembly code. The UI is inspired by VsCode. This app was built using tauri. The front end uses NextJs (a React Framework) and the backend is written in Rust. The user can run multiple files by adding a config.json file, and putting the files they want to run in the 'files' parameter. If there is no config.json file detected, the editor will automatically look for a main.s file to run. An example of code that can be ran in the editor is inside the folder named 'example'. Special thanks to this blog for creating the basic foundation of this app https://hackernoon.com/how-i-cloned-a-simple-vscode-using-tauri-and-reactjs.
 ## Getting Started
-
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run tauri dev
 ```
+## Features
+* A simple editor UI.
+* Ability to edit multiple files.
+* Ability to run several Arm instructions.
+* Basic debug features like continue, step, and stop buttons.
+* CPU and Memory tabs to display the status of the virtual CPU and Memory in real time.
+* Ability to compile and run multiple files.
+* An integrated terminal to support input and output.
+* Predefined subroutines to handle output and user input.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Running/Debugging Multiple Files:
+Create a config.json file in the parent directory. Inside the file, add these two parameters.
+```json
+{
+  "files": [
+    "main.s",
+    "file2.s",
+    "file3.s"
+  ],
+  "delay": 0
+}
+```
+The 'delay' parameter sets the time delay for each assembly instruction when debugging the code.
+## (Frontend) Potential Improvements:
+* Improving the frontend performance.
+    * Convert some states into references instead.
+    * Use a State Machine instead of useContext() to store global variables.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## (Backend) Potential Improvements
+* Adding more instructions, such as:
+    * PUSH and POP instructions.
+    * ASR
+    * BFC
+    * BFI
+    * CBNZ
+    * CBZ
+    * And many more.
+* Adding more documentation (this is particularly needed in the src-tauri/utils.rs module).
+* Adding a CodeMirror theme for assembly. So that there is syntax highlighting and maybe linting.
+* Add more error handling for file management.
+* More robust file management.
