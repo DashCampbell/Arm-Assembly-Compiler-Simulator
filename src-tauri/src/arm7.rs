@@ -47,6 +47,7 @@ pub enum DebugStatus {
     END, // no more instructions to run
     CONTINUE,
     BREAKPOINT,
+    RUNNING,
 }
 #[derive(Debug, PartialEq, serde::Serialize)]
 pub enum InputStatus {
@@ -683,7 +684,7 @@ impl Program {
         &self,
         processor: &mut Processor,
         shutdown: State<'_, GlobalKillSwitch>,
-    ) -> Result<(String, InputStatus), String> {
+    ) -> Result<(String, InputStatus, DebugStatus), String> {
         // Starting at the PC index.
         let mut std_out = String::new();
 
@@ -726,10 +727,10 @@ impl Program {
                             );
                         }
                         Label::GetNumber => {
-                            return Ok((std_out, InputStatus::GetNumber));
+                            return Ok((std_out, InputStatus::GetNumber, DebugStatus::RUNNING));
                         }
                         Label::GetChar => {
-                            return Ok((std_out, InputStatus::GetChar));
+                            return Ok((std_out, InputStatus::GetChar, DebugStatus::RUNNING));
                         }
                         Label::Index(_) => {}    // covered in execution function
                     },
@@ -750,16 +751,17 @@ impl Program {
                 break;
             }
         }
-        Ok((std_out, InputStatus::None))
+        Ok((std_out, InputStatus::None, DebugStatus::END))
     }
     /// Debug compiled assembly instuctions
-    /// If Ok, returns (current file name, current line number, standard output, and debug status)
+    /// If Ok, returns (current file name, current line number, debug status, Input Status, standard output)
     /// If Err, returns standard error
     pub fn debug_run(
         &self,
         processor: State<'_, GlobalProcessor>,
         shutdown: State<'_, GlobalKillSwitch>,
-    ) -> Result<(String, usize, String, DebugStatus), String> {
+        std_input: Option<i32>,
+    ) -> Result<(String, usize, DebugStatus, InputStatus, Option<String>), String> {
         // time delay for instruction
         thread::sleep(Duration::from_millis(self.delay as u64));
 
@@ -768,12 +770,16 @@ impl Program {
             .0
             .lock()
             .expect("Failed to get processor in run function.");
+        if let Some(input) = std_input {
+            processor.R[0] = input as u32;
+        }
         // Terminate process if stop button was pressed, or end of file was reached.
         let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");
+        let mut std_out: String = String::new();
 
         if (processor.R[15] as usize) >= self.lines.len() || *kill_switch {
             *kill_switch = false;
-            return Ok(("".into(), 0, "".into(), DebugStatus::END));
+            return Ok(("".into(), 0, DebugStatus::END, InputStatus::None, None));
         }
         // get the line to run
         let line = &self.lines[processor.R[15] as usize];
@@ -783,12 +789,6 @@ impl Program {
             DebugStatus::CONTINUE
         };
         processor.R[15] += 1;
-        let status = (
-            line.file_name.clone(),
-            line.line_number,
-            "".to_string(),
-            debug_status,
-        );
         let instruction = self
             .instructions
             .get(&line.mnemonic)
@@ -797,20 +797,68 @@ impl Program {
         if let Some(cc) = line.extension.cc {
             // skip instruction if condition code not passed
             if !cc.condition_test(processor.N, processor.Z, processor.C, processor.V) {
-                return Ok(status);
+                return Ok((
+                    line.file_name.clone(),
+                    line.line_number,
+                    debug_status,
+                    InputStatus::None,
+                    None,
+                ));
             }
         }
         // run line, if a run-time error occurs stop program.
-        if let Err(runtime_error) =
-            instruction.execute(line.extension.s, &line.operands, &mut processor)
-        {
-            Err(format!(
-                "\"{}\" line {}: {}",
-                line.file_name, line.line_number, runtime_error
-            ))
-        } else {
-            Ok(status)
+        // handle predefined subroutines
+        if line.mnemonic == "b" || line.mnemonic == "bl" {
+            match line.operands {
+                Operands::label { label } => match label {
+                    Label::CR => {
+                        std_out += "\n";
+                    }
+                    Label::VALUE => {
+                        std_out = format!("{}{}", std_out, processor.R[0] as i32);
+                    }
+                    Label::PRINTCHAR => {
+                        std_out = match char::from_u32(processor.R[0]) {
+                            Some(c) => format!("{}{}", std_out, c),
+                            None => format!("{}Warning. Register value exceeds 255 and cannot be converted to an ascii character.", std_out),
+                        }
+                    }
+                    Label::PRINTF => {
+                        std_out = format!(
+                            "{}{}",
+                            std_out, self.string_messages.get(processor.R[0] as usize).ok_or(format!("\"{}\" line {}: Cannot print string pointed to by register r0.", line.file_name, line.line_number))?
+                        );
+                    }
+                    Label::GetNumber => {
+                        return Ok((line.file_name.clone(), line.line_number,  debug_status, InputStatus::GetNumber, None));
+                    }
+                    Label::GetChar => {
+                        return Ok((line.file_name.clone(), line.line_number,  debug_status, InputStatus::GetChar, None));
+                    }
+                    Label::Index(_) => {}    // covered in execution function
+                },
+                _ => (),
+            }
         }
+        instruction
+            .execute(line.extension.s, &line.operands, &mut processor)
+            .map_err(|runtime_error| {
+                format!(
+                    "\"{}\" line {}: {}",
+                    line.file_name, line.line_number, runtime_error
+                )
+            })?;
+        Ok((
+            line.file_name.clone(),
+            line.line_number,
+            debug_status,
+            InputStatus::None,
+            if std_out.is_empty() {
+                None
+            } else {
+                Some(std_out)
+            },
+        ))
     }
 }
 

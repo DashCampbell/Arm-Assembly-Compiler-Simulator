@@ -20,6 +20,7 @@ pub struct GlobalKillSwitch(pub Mutex<bool>);
 pub async fn compile(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
+    kill_switch: State<'_, GlobalKillSwitch>,
     dir_path: &str,
     breakpoint_map: Option<HashMap<&str, Vec<usize>>>,
 ) -> Result<(), Vec<String>> {
@@ -33,6 +34,8 @@ pub async fn compile(
     // Reset CPU and Memory of Processor
     processor.reset();
     drop(processor);
+    // reset kill switch
+    *kill_switch.0.lock().unwrap() = false;
 
     let mut program = program
         .0
@@ -123,7 +126,8 @@ pub async fn run(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
     kill_switch: State<'_, GlobalKillSwitch>,
-) -> Result<(String, InputStatus), String> {
+    std_input: Option<i32>,
+) -> Result<(String, InputStatus, DebugStatus), String> {
     // program is compiled and now immutable
     let program = program
         .0
@@ -135,25 +139,29 @@ pub async fn run(
         .0
         .lock()
         .expect("Failed to get processor in run function.");
-
+    if let Some(input) = std_input {
+        processor.R[0] = input as u32;
+        println!("{}", input);
+    }
     program.run(&mut processor, kill_switch)
 }
 
 #[tauri::command(rename_all = "snake_case")]
 /// Returns Standard Output or Standard Error
-/// If Ok, returns (current file name, current line number, and standard output)
+/// If Ok, returns (current file name, current line number, Debug status, Input Status, standard output)
 pub async fn debug_run(
     processor: State<'_, GlobalProcessor>,
     program: State<'_, GlobalProgram>,
     kill_switch: State<'_, GlobalKillSwitch>,
-) -> Result<(String, usize, String, DebugStatus), String> {
+    std_input: Option<i32>,
+) -> Result<(String, usize, DebugStatus, InputStatus, Option<String>), String> {
     // program is compiled and now immutable
     let program = program
         .0
         .lock()
         .expect("Failed to get Program in run function.");
 
-    program.debug_run(processor, kill_switch)
+    program.debug_run(processor, kill_switch, std_input)
 }
 #[tauri::command]
 /// Stops the current assembly code from running.

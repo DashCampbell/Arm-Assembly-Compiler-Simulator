@@ -3,16 +3,13 @@ import { ISourceContext } from "@/context/SourceContext";
 import { getFileFromName, getFileObject } from "@/stores/files";
 import { invoke } from "@tauri-apps/api/tauri";
 
-export const handleRun = (source: ISourceContext, ass_source: IAssemblyContext) => {
+export const handleCompileRun = (source: ISourceContext, ass_source: IAssemblyContext) => {
     const { directory } = source;
     const {
-        cpu,
-        cpu_format,
-        memory,
-        memory_format,
         clear_std_out,
         push_std_out,
         toolbar_btn,
+        set_debug_status
     } = ass_source;
 
     if (!toolbar_btn.state.run)
@@ -30,29 +27,9 @@ export const handleRun = (source: ISourceContext, ass_source: IAssemblyContext) 
             // Run assembly code, activate Stop btn.
             push_std_out("run", "Running...");
             toolbar_btn.setRunningMode();
+            set_debug_status(DebugStatus.RUNNING);
 
-            invoke<[string, InputStatus]>('run')
-                .then(([std_out, input_status]) => {
-                    push_std_out("text", std_out);
-                    push_std_out("run", "Finished Running");
-                    let status: InputStatus = input_status;
-                    console.log(status);
-                })
-                .catch(err => {
-                    push_std_out("red", "Runtime Error:");
-                    push_std_out("error", err);
-                })
-                .finally(() => {
-                    // Update Terminal, CPU, and Memory data
-                    invoke<CPU>('display_cpu', { num_format: cpu_format.current }).then(newCPU => {
-                        cpu.update_cpu(newCPU.R, newCPU.N, newCPU.Z, newCPU.C, newCPU.V);
-                    });
-                    invoke<[string[], number]>('display_memory', { num_format: memory_format.current }).then(([ram, sp]) => {
-                        memory.update_memory(ram.reverse(), sp);
-                    });
-                    // Deactivate Toolbar Buttons
-                    toolbar_btn.setInactiveMode();
-                });
+            handleRun(ass_source);
         }
         ).catch(err => {
             err.forEach((mess: string) => {
@@ -60,10 +37,50 @@ export const handleRun = (source: ISourceContext, ass_source: IAssemblyContext) 
             });
             push_std_out("red", "Compiling failed...");
         });
+}
+export const handleRun = (ass_source: IAssemblyContext, std_input?: number) => {
+    const {
+        cpu,
+        cpu_format,
+        memory,
+        memory_format,
+        push_std_out,
+        toolbar_btn,
+        input_status,
+        set_debug_status
+    } = ass_source;
+
+    invoke<[string, InputStatus, DebugStatus]>('run', { std_input })
+        .then(([std_out, new_input_status, new_debug_status]) => {
+            push_std_out("text", std_out);
+            input_status.current = new_input_status;
+            if (new_debug_status === DebugStatus.END) {
+                push_std_out("run", "Finished Running");
+                set_debug_status(DebugStatus.END);
+                toolbar_btn.setInactiveMode();
+            } else
+                toolbar_btn.setRunningMode();
+        })
+        .catch(err => {
+            push_std_out("red", "Runtime Error:");
+            push_std_out("error", err);
+            push_std_out("run", "Finished Running");
+            set_debug_status(DebugStatus.END);
+            toolbar_btn.setInactiveMode();
+        })
+        .finally(() => {
+            // Update Terminal, CPU, and Memory data
+            invoke<CPU>('display_cpu', { num_format: cpu_format.current }).then(newCPU => {
+                cpu.update_cpu(newCPU.R, newCPU.N, newCPU.Z, newCPU.C, newCPU.V);
+            });
+            invoke<[string[], number]>('display_memory', { num_format: memory_format.current }).then(([ram, sp]) => {
+                memory.update_memory(ram.reverse(), sp);
+            });
+        });
 };
 
 // executes one assembly instruction.
-const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext): Promise<boolean> => {
+export const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext, std_input?: number): Promise<boolean> => {
     const { setSelect, addOpenedFile } = source;
     const {
         cpu,
@@ -73,12 +90,17 @@ const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext):
         push_std_out,
         toolbar_btn,
         set_debug_status,
-        highlight_line
+        highlight_line,
+        input_status
     } = ass_source;
     let stop = false;
-    await invoke<[string, number, string, DebugStatus]>('debug_run').then(([file_name, line_number, std_output, status]) => {
-        push_std_out("text", std_output);
+    await invoke<[string, number, DebugStatus, InputStatus, string?,]>('debug_run', { std_input }).then(([file_name, line_number, new_debug_status, new_input_status, std_output]) => {
+        if (std_output)
+            push_std_out("text", std_output);
+
         let file = getFileFromName(file_name);
+        input_status.current = new_input_status;
+
         if (file) {
             // set the line to highlight
             highlight_line.setLine(file.id, line_number);
@@ -86,16 +108,19 @@ const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext):
             addOpenedFile(file.id);
             setSelect(file.id);
         }
-        if (status == DebugStatus.END || status == DebugStatus.BREAKPOINT) {
-            set_debug_status(status);
+        if (new_debug_status == DebugStatus.END || new_debug_status == DebugStatus.BREAKPOINT) {
+            set_debug_status(new_debug_status);
             stop = true;
-            if (status == DebugStatus.END) {
+            if (new_debug_status == DebugStatus.END) {
                 highlight_line.setLine('', 0);  // unhighlight line if program completed
                 toolbar_btn.setInactiveMode();
                 push_std_out("run", "Finished Debugging");
-            } else if (status == DebugStatus.BREAKPOINT) {
+            } else if (new_debug_status == DebugStatus.BREAKPOINT) {
                 toolbar_btn.setBreakpointMode();
             }
+        }
+        if (new_input_status !== InputStatus.None) {
+            toolbar_btn.setRunningMode();
         }
     }).catch(err => {
         push_std_out("error", err);
@@ -117,10 +142,11 @@ const debug_step = async (source: ISourceContext, ass_source: IAssemblyContext):
     return Promise.resolve(stop);
 }
 // continues executing assembly instructions until the last instruction or a breakpoint is reached.
-const debug_continue = async (source: ISourceContext, ass_source: IAssemblyContext) => {
+export const debug_continue = async (source: ISourceContext, ass_source: IAssemblyContext, std_input?: number) => {
     let stop = false;
-    while (!stop) {
-        stop = await debug_step(source, ass_source);
+    const { input_status } = ass_source;
+    while (!stop && input_status.current === InputStatus.None) {
+        stop = await debug_step(source, ass_source, std_input);
     }
 };
 export const handleDebug = (source: ISourceContext, ass_source: IAssemblyContext) => {

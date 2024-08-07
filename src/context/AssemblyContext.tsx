@@ -37,9 +37,9 @@ export interface Memory {
     update_memory: (memory: string[], SP: number) => void;
 }
 export enum InputStatus {
-    GetChar,
-    GetNumber,
-    None,
+    GetChar = 'GetChar',
+    GetNumber = 'GetNumber',
+    None = 'None',
 }
 export enum DebugStatus {
     RUNNING = 'RUNNING',
@@ -59,6 +59,7 @@ export interface IAssemblyContext {
     push_std_out: (type: string, message: string) => void;
     toolbar_btn: Itoolbar_btn,
     debug_status: DebugStatus,
+    input_status: MutableRefObject<InputStatus>,
     set_debug_status: (status: DebugStatus) => void;
     highlight_line: Ihighlight_line,
 }
@@ -79,6 +80,7 @@ const AssemblyContext = createContext<IAssemblyContext>({
         setBreakpointMode() { },
         setInactiveMode() { },
     },
+    input_status: createRef() as MutableRefObject<InputStatus>,
     debug_status: DebugStatus.END,
     set_debug_status: (status) => { },
     highlight_line: {
@@ -106,6 +108,7 @@ const AssemblyContext = createContext<IAssemblyContext>({
 export const AssemblySourceProvider = ({ children }: { children: JSX.Element | JSX.Element[] }) => {
     const [std_out, setSTDOut] = useState<I_std_out[]>([]);
     const [debug_status, set_debug_status] = useState(DebugStatus.END);
+    const input_status = useRef<InputStatus>(InputStatus.None);
     const cpu_format = useRef<string>('unsigned');
     const [cpu, setCPU] = useState<CPU>({
         R: new Array(16).fill("0"),
@@ -162,6 +165,7 @@ export const AssemblySourceProvider = ({ children }: { children: JSX.Element | J
         clear_std_out,
         push_std_out,
         toolbar_btn,
+        input_status,
         debug_status,
         set_debug_status,
         highlight_line,
