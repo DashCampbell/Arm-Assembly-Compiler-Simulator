@@ -752,7 +752,6 @@ impl Program {
             .expect("Failed to get processor in run function.");
         if let Some(input) = std_input {
             processor.R[0] = input as u32;
-            println!("Got input {}", input);
         }
         // Terminate process if stop button was pressed, or end of file was reached.
         let mut kill_switch = shutdown.0.lock().expect("Error getting lock.");

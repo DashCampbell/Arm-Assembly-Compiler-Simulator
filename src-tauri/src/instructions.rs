@@ -8,25 +8,28 @@ use crate::utils as hp;
 
 /// Returns a Hashmap for all instructions, the key is the instruction's mnemonic
 pub fn all_instructions() -> HashMap<String, Box<dyn Instruction>> {
-    let mut instructions: HashMap<String, Box<dyn Instruction>> = HashMap::new();
-    instructions.insert("mov".into(), Box::new(MOV {}));
-    instructions.insert("add".into(), Box::new(ADD {}));
-    instructions.insert("cmp".into(), Box::new(CMP {}));
-    instructions.insert("b".into(), Box::new(B {}));
-    instructions.insert("bl".into(), Box::new(BL {}));
-    instructions.insert("strb".into(), Box::new(STRB {}));
-    instructions.insert("strh".into(), Box::new(STRH {}));
-    instructions.insert("str".into(), Box::new(STR {}));
-    instructions.insert("ldrb".into(), Box::new(LDRB {}));
-    instructions.insert("ldrh".into(), Box::new(LDRH {}));
-    instructions.insert("ldr".into(), Box::new(LDR {}));
+    let mut instructions: HashMap<&str, Box<dyn Instruction>> = HashMap::new();
+    instructions.insert("mov", Box::new(MOV {}));
+    instructions.insert("add", Box::new(ADD {}));
+    instructions.insert("cmp", Box::new(CMP {}));
+    instructions.insert("b", Box::new(B {}));
+    instructions.insert("bl", Box::new(BL {}));
+    instructions.insert("strb", Box::new(STRB {}));
+    instructions.insert("strh", Box::new(STRH {}));
+    instructions.insert("str", Box::new(STR {}));
+    instructions.insert("ldrb", Box::new(LDRB {}));
+    instructions.insert("ldrh", Box::new(LDRH {}));
+    instructions.insert("ldr", Box::new(LDR {}));
 
     instructions
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect()
 }
 pub trait Instruction: Send + Sync {
     /// The instruction's mnemonic, must be lowercase for text parsing.
     fn mnemonic(&self) -> &'static str;
-    /// Determines & validates the category and operands for an instruction line. Returns an error if the instruction is invalid.
+    /// Determines & validates the operands for an instruction line. Returns an error if the instruction is invalid.
     /// Called at compile time
     /// The extension if used to validate the instruction and get any constraints.
     fn get_operands(
