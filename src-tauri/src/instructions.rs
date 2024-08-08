@@ -31,7 +31,7 @@ pub trait Instruction: Send + Sync {
     fn mnemonic(&self) -> &'static str;
     /// Determines & validates the operands for an instruction line. Returns an error if the instruction is invalid.
     /// Called at compile time
-    /// The extension if used to validate the instruction and get any constraints.
+    /// The extension is used to validate the instruction and get any constraints.
     fn get_operands(
         &self,
         extension: &MnemonicExtension,
