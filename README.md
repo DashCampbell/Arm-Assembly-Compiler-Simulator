@@ -1,6 +1,8 @@
 # ARMv7 Assembly IDE Emulator
 ![alt text](image.png)
 A simple code editor that is able to run and debug Arm7 assembly code. The UI is inspired by VsCode. This app was built using tauri. The front end uses NextJs (a React Framework) and the backend is written in Rust. The user can run multiple files by adding a config.json file, and putting the files they want to run in the 'files' parameter. If there is no config.json file detected, the editor will automatically look for a main.s file to run. An example of code that can be ran in the editor is inside the folder [example](https://github.com/DashCampbell/Arm-Assembly-Compiler-Simulator/tree/master/example). Special thanks to this [blog](https://hackernoon.com/how-i-cloned-a-simple-vscode-using-tauri-and-reactjs) for creating the basic foundation of this app.
+## Windows 10/11 Release
+Simply download and run the executable found [here](https://github.com/DashCampbell/Arm-Assembly-Compiler-Simulator/blob/master/example/arm7_compiler.exe)
 ## Getting Started
 ```bash
 npm run tauri dev
