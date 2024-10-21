@@ -25,7 +25,8 @@ interface Props {
 // npm i "missing extension"
 
 export default function CodeEditor({ id, selected, save, content, breakpoints }: Props) {
-    const { setSaveStateOpenedFile, updateBreakpoints } = useMemo(() => useSource(), []);
+    const { setSaveStateOpenedFile, updateBreakpoints } = useSource();
+    // const { setSaveStateOpenedFile, updateBreakpoints } = useMemo(() => useSource(), []);
     const { highlight_line, debug_status } = useAssemblySource();
     const editor = useRef<HTMLDivElement | null>(null);
     const extensions = useMemo(() => [

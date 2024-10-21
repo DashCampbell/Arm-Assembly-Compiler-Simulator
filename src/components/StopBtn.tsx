@@ -6,7 +6,8 @@ import { memo, useMemo } from "react";
 function StopBtn({ active }: { active: boolean }) {
     const stop_color = active ? "text-red-500" : "text-slate-400";
     // use memo to prevent unnecessary rerenders, will cause a warning in the console logs
-    const { input_status, highlight_line, toolbar_btn, push_std_out, set_debug_status } = useMemo(() => useAssemblySource(), []);
+    // const { input_status, highlight_line, toolbar_btn, push_std_out, set_debug_status } = useMemo(() => useAssemblySource(), []);
+    const { input_status, highlight_line, toolbar_btn, push_std_out, set_debug_status } = useAssemblySource();
     const handleStop = () => {
         // Stop program from running.
         if (active) {

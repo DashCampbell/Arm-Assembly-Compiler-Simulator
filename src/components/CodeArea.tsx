@@ -50,7 +50,7 @@ export default function CodeArea() {
                     const file = getFileObject(id) as IFile;
 
                     if (isImage(file.name)) {
-                        return <PreviewImage path={file.path} active={id === selected} />
+                        return <PreviewImage key={id} path={file.path} active={id === selected} />
                     } else if (all_content && all_content[index]) {
                         // do not render editor unless content is completly loaded, will cause many issues.
                         return <CodeEditor key={id} id={id} save={bSave} content={all_content[index]} breakpoints={breakpoints} selected={id === selected} />
